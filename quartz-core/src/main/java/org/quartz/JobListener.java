@@ -30,6 +30,8 @@ package org.quartz;
  * @see JobExecutionContext
  * @see JobExecutionException
  * @see TriggerListener
+ *
+ * 由希望在JobDetail执行时得到通知的类实现的接口。通常，使用Scheduler的应用程序不会使用这种机制。
  * 
  * @author James House
  */
@@ -61,6 +63,8 @@ public interface JobListener {
      * This method will not be invoked if the execution of the Job was vetoed
      * by a <code>{@link TriggerListener}</code>.
      * </p>
+     * 当JobDetail即将执行时(发生了关联的触发器)，Scheduler将调用该函数。
+     * 如果作业的执行被TriggerListener否决，则不会调用此方法。
      * 
      * @see #jobExecutionVetoed(JobExecutionContext)
      */
@@ -73,7 +77,8 @@ public interface JobListener {
      * has occurred), but a <code>{@link TriggerListener}</code> vetoed it's 
      * execution.
      * </p>
-     * 
+     *
+     * 当JobDetail即将被执行时(关联的触发器已经发生)，Scheduler会调用它，但是TriggerListener否决了它的执行。
      * @see #jobToBeExecuted(JobExecutionContext)
      */
     void jobExecutionVetoed(JobExecutionContext context);
@@ -84,6 +89,7 @@ public interface JobListener {
      * Called by the <code>{@link Scheduler}</code> after a <code>{@link org.quartz.JobDetail}</code>
      * has been executed, and be for the associated <code>Trigger</code>'s
      * <code>triggered(xx)</code> method has been called.
+     * 在执行JobDetail之后由Scheduler调用，并且对于关联的Trigger的triggered(xx)方法已经被调用。
      * </p>
      */
     void jobWasExecuted(JobExecutionContext context,

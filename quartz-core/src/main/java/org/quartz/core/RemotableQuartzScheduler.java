@@ -41,6 +41,11 @@ import org.quartz.spi.OperableTrigger;
 
 /**
  * @author James House
+ *
+ * 该接口继承自  java.rmi 包中的Remote接口。Remote接口没有方法，是一个标记接口
+ * Remote接口用于标识其方法可以从非本地虚拟机调用的接口。任何远程对象都必须直接或间接地实现此接口。只有那些在“远程接口”(一个扩展了java.rmi.Remote的接口)中指定的方法是远程可用的。
+ * 实现类可以实现任意数量的远程接口，并可以扩展其他远程实现类。RMI提供了一些方便的类，远程对象实现可以扩展这些类，从而方便了远程对象的创建。这些类是java.rmi.server.UnicastRemoteObject和java.rmi.activation.Activatable。
+ * 有关RMI的完整细节，请参阅RMI规范，它描述了RMI API和系统。
  */
 public interface RemotableQuartzScheduler extends Remote {
 

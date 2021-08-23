@@ -26,6 +26,59 @@ package org.quartz;
  * 
  * @author James House
  * @author contributions by Lieven Govaerts of Ebitec Nv, Belgium.
+ * 二、激活失败处理
+ *
+ * 激活失败指令（Misfire Instructions）是触发器的一个重要属性，它指定了misfire发生时调度器应当如何处理。所有类型的触发器都有一个默认的指令，叫做Trigger.MISFIRE_INSTRUCTION_SMART_POLICY，但是这个这个“聪明策略”对于不同类型的触发器其具体行为是不同的。对于SimpleTrigger，这个“聪明策略”将根据触发器实例的状态和配置来决定其行为。具体如下[]：
+ *
+ * 如果Repeat Count=0：
+ *
+ * instruction selected = MISFIRE_INSTRUCTION_FIRE_NOW;
+ *
+ * 如果Repeat Count=REPEAT_INDEFINITELY：
+ *
+ * instruction selected = MISFIRE_INSTRUCTION_RESCHEDULE_NEXT_WITH_REMAINING_COUNT;
+ *
+ * 如果Repeat Count>0：
+ *
+ * instruction selected = MISFIRE_INSTRUCTION_RESCHEDULE_NOW_WITH_EXISTING_REPEAT_COUNT;
+ *
+ * 下面解释SimpleTrigger常见策略：
+ *
+ * MISFIRE_INSTRUCTION_FIRE_NOW
+ *
+ * 立刻执行。对于不会重复执行的任务，这是默认的处理策略。
+ *
+ * MISFIRE_INSTRUCTION_RESCHEDULE_NEXT_WITH_REMAINING_COUNT
+ *
+ * NEXT指以现在为基准，以repeat interval为周期，延时到下一个激活点执行。WITH_REMAINING_COUNT指超时期内错过的执行机会作废。因此该策略的含义是，在下一个激活点执行，且超时期内错过的执行机会作废。
+ *
+ * MISFIRE_INSTRUCTION_RESCHEDULE_NOW_WITH_REMAINING_COUNT
+ *
+ * 立即执行，且超时期内错过的执行机会作废。
+ *
+ * MISFIRE_INSTRUCTION_RESCHEDULE_NEXT_WITH_EXISTING_COUNT
+ *
+ * WITH_EXISTING_COUNT指，根据已设置的repeat count进行执行。也就是说错过的执行机会不作废，保证实际执行次数满足设置。因此本策略的含义是，在下一个激活点执行，并重复到指定的次数。
+ *
+ * MISFIRE_INSTRUCTION_RESCHEDULE_NOW_WITH_EXISTING_COUNT
+ *
+ * 立即执行，并重复到指定的次数。
+ *
+ * MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY
+ *
+ * 忽略所有的超时状态，按照触发器的策略执行。
+ *
+ * 对于CronTrigger，该“聪明策略”默认选择MISFIRE_INSTRUCTION_FIRE_ONCE_NOW以指导其行为。
+ *
+ * 下面解释CronTrigger常见策略：
+ *
+ * MISFIRE_INSTRUCTION_FIRE_ONCE_NOW
+ *
+ * 立刻执行一次，然后就按照正常的计划执行。
+ *
+ * MISFIRE_INSTRUCTION_DO_NOTHING
+ *
+ * 目前不执行，然后就按照正常的计划执行。这意味着如果下次执行时间超过了end time，实际上就没有执行机会了。
  */
 public interface SimpleTrigger extends Trigger {
 

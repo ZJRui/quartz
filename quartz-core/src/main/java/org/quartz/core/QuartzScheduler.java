@@ -83,7 +83,7 @@ import org.slf4j.LoggerFactory;
  * interface, containing methods to schedule <code>{@link org.quartz.Job}</code>s,
  * register <code>{@link org.quartz.JobListener}</code> instances, etc.
  * </p>
- * 
+ * 这是Quartz的核心，它是Scheduler接口的间接实现，包含调度job、注册JobListener实例等方法。
  * @see org.quartz.Scheduler
  * @see org.quartz.core.QuartzSchedulerThread
  * @see org.quartz.spi.JobStore
@@ -101,9 +101,9 @@ public class QuartzScheduler implements RemotableQuartzScheduler {
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      */
 
-    private static String VERSION_MAJOR = "UNKNOWN";
+    private static String VERSION_MAJOR = "UNKNOWN";//主要
     private static String VERSION_MINOR = "UNKNOWN";
-    private static String VERSION_ITERATION = "UNKNOWN";
+    private static String VERSION_ITERATION = "UNKNOWN";//迭代
 
     static {
         Properties props = new Properties();
@@ -212,8 +212,21 @@ public class QuartzScheduler implements RemotableQuartzScheduler {
             addInternalJobListener((JobListener)resources.getJobStore());
         }
 
+        /**
+         * QuartzSchedulerThread 继承自Thread。
+         * Java中的Thread线程本身又实现了Runable接口
+         *因此QuartzSchedulerThread的run方法是核心逻辑
+         */
         this.schedThread = new QuartzSchedulerThread(this, resources);
+        /**
+         * 获取线程池
+         */
         ThreadExecutor schedThreadExecutor = resources.getThreadExecutor();
+        /**
+         * 将QuartzSchedulerThread作为Runnable放置到线程池中执行，也就是启动了线程QuartzSchedulerThread
+         *
+         * scheduler.start()方法，最终调用了QuartzSchedulerThread.togglePause()方法，发出了唤醒线程的信号。
+         */
         schedThreadExecutor.execute(this.schedThread);
         if (idleWaitTime > 0) {
             this.schedThread.setIdleWaitTime(idleWaitTime);

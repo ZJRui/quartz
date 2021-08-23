@@ -24,6 +24,7 @@ import org.quartz.Trigger;
 /**
  * An interface to be used by <code>JobStore</code> instances in order to
  * communicate signals back to the <code>QuartzScheduler</code>.
+ * JobStore实例使用的接口，以便将信号返回给QuartzScheduler。
  * 
  * @author jhouse
  */

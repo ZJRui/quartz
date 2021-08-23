@@ -29,7 +29,8 @@ import org.quartz.SchedulerException;
  * preventing garbage collection, and allowing 'global' lookups - all within a
  * ClassLoader space.
  * </p>
- * 
+ *
+ * 保持对Scheduler实例的引用——确保惟一性，防止垃圾收集，并允许“全局”查找——所有这些都在ClassLoader空间中。
  * @author James House
  */
 public class SchedulerRepository {
@@ -44,6 +45,11 @@ public class SchedulerRepository {
 
     private HashMap<String, Scheduler> schedulers;
 
+    /**
+     * 注意SchedulerRepository是全局唯一的，在整个JVM内只有一个实例
+     * 因此上面的schedulers就是保存所有的  schedulers。
+     * 而且SchedulerRepository的所有方法都是Synchronized
+     */
     private static SchedulerRepository inst;
 
     /*

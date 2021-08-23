@@ -71,6 +71,8 @@ import static org.quartz.impl.matchers.EverythingMatcher.allTriggers;
  * should not be used if true persistence between program shutdowns is
  * required.
  * </p>
+ * 这个类实现了一个利用RAM作为其存储设备的JobStore。
+ * 您应该知道，这样做的后果是访问速度非常快，但数据是完全不稳定的——因此，如果需要在程序关闭之间实现真正的持久性，就不应该使用这个JobStore。
  * 
  * @author James House
  * @author Sharada Jambula
@@ -800,7 +802,7 @@ public class RAMJobStore implements JobStore {
      * <p>
      * Retrieve the given <code>{@link org.quartz.Trigger}</code>.
      * </p>
-     *
+     *检索给定的触发器。
      * @param calName
      *          The name of the <code>Calendar</code> to be retrieved.
      * @return The desired <code>Calendar</code>, or null if there is no
@@ -1441,7 +1443,30 @@ public class RAMJobStore implements JobStore {
      * Get a handle to the next trigger to be fired, and mark it as 'reserved'
      * by the calling scheduler.
      * </p>
+     *获取下一个要触发的触发器的句柄，并由调用调度器将其标记为'reserved'。进入翻译页面
      *
+     * SELECT
+     *     TRIGGER_NAME,
+     *     TRIGGER_GROUP,
+     *     NEXT_FIRE_TIME,
+     *     PRIORITY
+     * FROM
+     *     QRTZ_TRIGGERS
+     * WHERE
+     *     SCHED_NAME = 'TestScheduler'
+     * AND TRIGGER_STATE = ?
+     * AND NEXT_FIRE_TIME <= ?
+     * AND (
+     *     MISFIRE_INSTR = - 1
+     *     OR (
+     *         MISFIRE_INSTR != - 1
+     *         AND NEXT_FIRE_TIME >= ?
+     *     )
+     * )
+     * ORDER BY
+     *     NEXT_FIRE_TIME ASC,
+     *     PRIORITY DESC
+     *   Sql:  org.quartz.impl.jdbcjobstore.StdJDBCConstants#SELECT_INSTANCES_FIRED_TRIGGERS
      * @see #releaseAcquiredTrigger(OperableTrigger)
      */
     public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow) {
@@ -1459,6 +1484,10 @@ public class RAMJobStore implements JobStore {
                 TriggerWrapper tw;
 
                 try {
+                    /**
+                     * timeTriggers是一个TreeSet ，元素之间使用下次触发时间排序。
+                     * 这里是获取第一个被触发的job，如果tw不为null，则执行remove， 然后下次循环的时候会又1取第一个，因此这就实现了对TreeSet的遍历
+                     */
                     tw = timeTriggers.first();
                     if (tw == null)
                         break;
@@ -1471,6 +1500,9 @@ public class RAMJobStore implements JobStore {
                     continue;
                 }
 
+                /**
+                 * applyMisfire 判断是否在误差延迟触发范围之内
+                 */
                 if (applyMisfire(tw)) {
                     if (tw.trigger.getNextFireTime() != null) {
                         timeTriggers.add(tw);
@@ -1537,6 +1569,10 @@ public class RAMJobStore implements JobStore {
      * given <code>Trigger</code> (executing its associated <code>Job</code>),
      * that it had previously acquired (reserved).
      * </p>
+     * 通知JobStore调度器现在正在触发给定的Trigger(执行其关联的Job)，以及它之前获得的(保留的)。
+     *
+     * 返回:
+     * 如果所有触发器或它们的日历不再存在，或者触发器没有被成功地放入“执行”状态，可能返回null。如果没有一个触发器可以触发，首选方法是返回一个空列表
      */
     public List<TriggerFiredResult> triggersFired(List<OperableTrigger> firedTriggers) {
 
@@ -1550,6 +1586,9 @@ public class RAMJobStore implements JobStore {
                     continue;
                 }
                 // was the trigger completed, paused, blocked, etc. since being acquired?
+                /**
+                 * //触发器是否被完成，暂停，阻塞等?
+                 */
                 if (tw.state != TriggerWrapper.STATE_ACQUIRED) {
                     continue;
                 }
@@ -1563,6 +1602,9 @@ public class RAMJobStore implements JobStore {
                 Date prevFireTime = trigger.getPreviousFireTime();
                 // in case trigger was replaced between acquiring and firing
                 timeTriggers.remove(tw);
+                /**
+                 *调用我们的副本，还有调度程序的副本
+                 */
                 // call triggered on our copy, and the scheduler's copy
                 tw.trigger.triggered(cal);
                 trigger.triggered(cal);

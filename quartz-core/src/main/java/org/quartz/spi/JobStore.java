@@ -600,6 +600,9 @@ public interface JobStore {
      * Inform the <code>JobStore</code> that the scheduler no longer plans to
      * fire the given <code>Trigger</code>, that it had previously acquired
      * (reserved).
+     *
+     * 通知JobStore调度器不再计划触发给定的触发器，它之前已经获得(保留)了。
+     *
      */
     void releaseAcquiredTrigger(OperableTrigger trigger);
 
@@ -612,6 +615,11 @@ public interface JobStore {
      *         if the trigger was not successfully put into the 'executing'
      *         state.  Preference is to return an empty list if none of the triggers
      *         could be fired.
+     *
+     *        通知JobStore调度器现在正在触发给定的Trigger(执行其关联的Job)，以及它之前获得的(保留的)。
+     *
+     * 返回:
+     * 如果所有触发器或它们的日历不再存在，或者触发器没有被成功地放入“执行”状态，可能返回null。如果没有一个触发器可以触发，首选方法是返回一个空列表
      */
     List<TriggerFiredResult> triggersFired(List<OperableTrigger> triggers) throws JobPersistenceException;
 

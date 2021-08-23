@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  * The thread responsible for performing the work of firing <code>{@link Trigger}</code>
  * s that are registered with the <code>{@link QuartzScheduler}</code>.
  * </p>
- *
+ *负责执行触发已注册到QuartzScheduler的触发器的工作的线程。
  * @see QuartzScheduler
  * @see org.quartz.Job
  * @see Trigger
@@ -71,6 +71,10 @@ public class QuartzSchedulerThread extends Thread {
 
     // When the scheduler finds there is no current trigger to fire, how long
     // it should wait until checking again...
+    /**
+     * //当调度程序发现当前没有触发器要触发时，多长时间
+     * //它应该等到再次检查…
+     */
     private static long DEFAULT_IDLE_WAIT_TIME = 30L * 1000L;
 
     private long idleWaitTime = DEFAULT_IDLE_WAIT_TIME;
@@ -120,6 +124,11 @@ public class QuartzSchedulerThread extends Thread {
         // start the underlying thread, but put this object into the 'paused'
         // state
         // so processing doesn't start yet...
+        /**
+         * //启动底层线程，但将这个对象放到'paused'中
+         * / /状态
+         * //处理还没有开始…
+         */
         paused = true;
         halted = new AtomicBoolean(false);
     }
@@ -144,6 +153,10 @@ public class QuartzSchedulerThread extends Thread {
     /**
      * <p>
      * Signals the main processing loop to pause at the next possible point.
+     * 指示主处理循环在下一个可能的点暂停。
+     * 1,QuartzScheduler的start的时候会将其设置为false
+     * 2，QuartzScheduler的standBy的时候会将其设置为true
+     * 3.QuartzSchedulerThread的构造器中将其设置为true
      * </p>
      */
     void togglePause(boolean pause) {
@@ -161,6 +174,8 @@ public class QuartzSchedulerThread extends Thread {
     /**
      * <p>
      * Signals the main processing loop to pause at the next possible point.
+     * 指示主处理循环在下一个可能的点暂停。
+     * org.quartz.core.QuartzScheduler#shutdown()会调用halt方法
      * </p>
      */
     void halt(boolean wait) {
@@ -243,23 +258,49 @@ public class QuartzSchedulerThread extends Thread {
     @Override
     public void run() {
         int acquiresFailed = 0;
-
+        // 只有调用了halt()方法，才会退出这个死循环,halted为false则执行while.
+        /**
+         * 提供了halt方法，在halt方法中会将 halted设置为true 此时会导致退出while.
+         * org.quartz.core.QuartzScheduler#shutdown()会调用halt方法
+         */
         while (!halted.get()) {
             try {
                 // check if we're supposed to pause...
                 synchronized (sigLock) {
+
+                    /**
+                     *  //1.等待QuartzScheduler启动
+                     *     1,QuartzScheduler的start的时候会将其设置为false
+                     *      * 2，QuartzScheduler的standBy的时候会将其设置为true
+                     *      * 3.QuartzSchedulerThread的构造器中将其设置为true
+                     *
+                     *      paused为true表示暂停，因此paused为true的时候不退出while
+                     *
+                     *      循环检查paused && !halted.get()条件是否满足，否则释放sigLock对象的锁，并等待，一秒后重试。
+                     * 当QuartzScheduler对象创建并调用start()方法时，将唤醒QuartzSchedulerThread线程，即可跳出阻塞块，继续执行。
+                     */
                     while (paused && !halted.get()) {
                         try {
+                            // Part A：如果是暂停状态，那么循环超时等待1000毫秒
                             // wait until togglePause(false) is called...
                             sigLock.wait(1000L);
+                            /**
+                             * 对于 SIGLock对象的wait方法， 什么时候调用notify方法唤醒？
+                             *QuartzScheduler的start方法会调用schedThread.togglePause(false);，在togglePause方法中
+                             * 如果pause为false ，意味着不暂停，会通过sigLock.notifyAll()唤醒在sigLock上等待的所有线程
+                             */
                         } catch (InterruptedException ignore) {
                         }
 
+                        //当暂停时重置失败计数器，这样我们就不会
+                        //在取消暂停后再次等待
                         // reset failure counter when paused, so that we don't
                         // wait again after unpausing
                         acquiresFailed = 0;
                     }
-
+                    /**
+                     * 如果halted为true则 退出， 一般shutdown的时候会设置halted为true，参考halt方法：QuartzSchedulerThread#halt(boolean)
+                     */
                     if (halted.get()) {
                         break;
                     }
@@ -267,6 +308,12 @@ public class QuartzSchedulerThread extends Thread {
 
                 // wait a bit, if reading from job store is consistently
                 // failing (e.g. DB is down or restarting)..
+                /**
+                 * //等待一段时间，如果从作业存储读取是一致的
+                 * //失败(例如DB关闭或重新启动)。
+                 *                 //**********在前几次的循环中如果触发器的读取出现问题，
+                 *                 //**********则可能是数据库重启一类的原因引发的故障
+                 */
                 if (acquiresFailed > 1) {
                     try {
                         long delay = computeDelayForRepeatedErrors(qsRsrcs.getJobStore(), acquiresFailed);
@@ -275,6 +322,11 @@ public class QuartzSchedulerThread extends Thread {
                     }
                 }
 
+                /**
+                 * 确定池中当前可用的线程数。用于确定在返回false之前调用runInThread(Runnable)的次数。
+                 * 这个方法的实现应该阻塞，直到至少有一个可用的线程。
+                 * QuartzSchedulerThread.run()主要是在有可用线程的时候获取需要执行Trigger并出触发进行任务的调度！
+                 */
                 int availThreadCount = qsRsrcs.getThreadPool().blockForAvailableThreads();
                 if(availThreadCount > 0) { // will always be true, due to semantics of blockForAvailableThreads...
 
@@ -284,6 +336,35 @@ public class QuartzSchedulerThread extends Thread {
 
                     clearSignaledSchedulingChange();
                     try {
+                        // Part B：获取acquire状态的Trigger列表
+                        /**查询待触发的Trigger
+                         *  //2.2 从jobStore中获取下次要触发的触发器集合
+                         *                     //idleWaitTime == 30L * 1000L; 当调度程序发现没有当前触发器要触发，它应该等待多长时间再检查...
+                         *
+                         *
+                         *
+                         *  Quartz未雨绸缪，从JobStore中获取当前时间后移一段时间内（idle time + time window）将要触发的Triggers，
+                         *  以及在当前时间前移一段时间内（misfireThreshold）错过触发的Triggers(这里仅查询Trigger的主要信息)。
+                         *  被查询到的Trggers状态变化：STATE_WAITING-->STATE_ACQUIRED。结果集是以触发时间升序、优先级降序的集合。
+                         *
+                         *
+                         *    //**********acquireNextTriggers方法获取一批即将执行的触发器
+                         *                 //**********参数idleWaitTime默认为30s,即当前时间后30s内即将被触发执行的触发器就会被取出
+                         *
+                         *
+                         *                 //**********此外在acquireNextTriggers方法内部还有一个参数misfireThreshold
+                         *                 //**********misfireThreshold是一个时间范围，用于判定触发器是否延时触发
+                         *                 //**********misfireThreshold默认值是60秒，它相对的实际意义就是:
+                         *                 //**********在当前时间的60秒之前本应执行但尚未执行的触发器不被认为是延迟触发,
+                         *                 //**********这些触发器同样会被acquireNextTriggers发现
+                         *                 //**********有时由于工程线程繁忙、程序重启等原因，原本预定要触发的任务可能延迟
+                         *                 //**********我们可以在每个触发器中可以设置MISFIRE_INSTRUCTION,用于指定延迟触发后使用的策略
+                         *                 //**********举例，对于CronTrigger,延迟处理的策略主要有3种：
+                         *                 //**********（1）一个触发器无论延迟多少次，这些延迟都会被程序尽可能补回来
+                         *                 //**********（2）检测到触发器延迟后，该触发器会在尽可能短的时间内被立即执行一次(只有一次)，然后恢复正常
+                         *                 //**********（3）检测到延迟后不采取任何动作，触发器以现在时间为基准，根据自身的安排等待下一次被执行或停止，
+                         *                 //**********     比如有些触发器只执行一次，一旦延迟后，该触发器也不会被触发
+                         */
                         triggers = qsRsrcs.getJobStore().acquireNextTriggers(
                                 now + idleWaitTime, Math.min(availThreadCount, qsRsrcs.getMaxBatchSize()), qsRsrcs.getBatchTimeWindow());
                         acquiresFailed = 0;
@@ -297,6 +378,9 @@ public class QuartzSchedulerThread extends Thread {
                         }
                         if (acquiresFailed < Integer.MAX_VALUE)
                             acquiresFailed++;
+                        /**
+                         * 获取trigger出现异常，但是不会退出整个while循环，这里使用的是continue
+                         */
                         continue;
                     } catch (RuntimeException e) {
                         if (acquiresFailed == 0) {
@@ -305,6 +389,9 @@ public class QuartzSchedulerThread extends Thread {
                         }
                         if (acquiresFailed < Integer.MAX_VALUE)
                             acquiresFailed++;
+                        /**
+                         * 获取trigger出现异常，但是不会退出整个while循环，这里使用的是continue
+                         */
                         continue;
                     }
 
@@ -313,15 +400,31 @@ public class QuartzSchedulerThread extends Thread {
                         now = System.currentTimeMillis();
                         long triggerTime = triggers.get(0).getNextFireTime().getTime();
                         long timeUntilTrigger = triggerTime - now;
+                        /**
+                         * 下次触发的时间举例当前时间大于2毫秒
+                         */
                         while(timeUntilTrigger > 2) {
                             synchronized (sigLock) {
                                 if (halted.get()) {
                                     break;
                                 }
+                                /**
+                                 * 值得注意的是isCandidateNewTimeEarlierWithinReason(triggerTime, false)这个方法非常有趣，
+                                 * 还记得上一篇文章中，我们提到当一个Scheduler添加Job时，我们会将改变该Scheduler的下次点火时间与signaled状态吗，
+                                 * 这个方法，位于时间轮循环中，正是为了应对循环中又添加了新的触发器这种情况的，该方法如果检测到状态变化，
+                                 * 会做当前点火时间与新增的下次点火时间的对比。同时还会判断我们的新时间是否足够早----早到需要重新创建轮询队列，
+                                 * 根据是否进行持久化做的判断，如果做持久化就是70ms,不做则是7ms，emmm这个时间是怎么想出来的？
+                                 */
                                 if (!isCandidateNewTimeEarlierWithinReason(triggerTime, false)) {
                                     try {
                                         // we could have blocked a long while
                                         // on 'synchronize', so we must recompute
+                                        /**
+                                         * 列表不为空才需要进行下一步，此处是Quartz能够在指定时间执行任务的关键，首先计算出下次点火时间，
+                                         * 然后取出列表中点火时间最近的那个任务，然后开始while循环，这一循环唯一的意义就是等待时间足够近，
+                                         * 近到能够为这个Trigger点火。这里，实际上是时间轮算法的应用，
+                                         * 通过该算法，允许我们通过一个调度器来监控多个调度任务，而不是任其自身进行调用。
+                                         */
                                         now = System.currentTimeMillis();
                                         timeUntilTrigger = triggerTime - now;
                                         if(timeUntilTrigger >= 1)
@@ -395,6 +498,11 @@ public class QuartzSchedulerThread extends Thread {
                                 continue;
                             }
 
+                            /**
+                             * 这里将shell对象放入线程中执行
+                             * runInThread是java中ThreadPool中提供的方法：在下一个可用的线程中执行给定的Runnable。
+                             * 这个接口的实现不应该抛出异常，除非有严重的问题(例如，严重的配置错误)。如果没有立即可用的线程，则返回false。
+                             */
                             if (qsRsrcs.getThreadPool().runInThread(shell) == false) {
                                 // this case should never happen, as it is indicative of the
                                 // scheduler being shutdown or a bug in the thread pool or
@@ -408,7 +516,7 @@ public class QuartzSchedulerThread extends Thread {
 
                         continue; // while (!halted)
                     }
-                } else { // if(availThreadCount > 0)
+                } else { // if(availThreadCount > 0) QuartzSchedulerThread.run()主要是在有可用线程的时候获取需要执行Trigger并出触发进行任务的调度！
                     // should never happen, if threadPool.blockForAvailableThreads() follows contract
                     continue; // while (!halted)
                 }
@@ -496,6 +604,25 @@ public class QuartzSchedulerThread extends Thread {
         // it can abandon the acquired trigger and acquire a new one.  However
         // we have no current facility for having it tell us that, so we make
         // a somewhat educated but arbitrary guess ;-).
+        /**
+         * //这是交易:我们知道，因为被告知' schedule'
+         * / /已经发生了改变。我们可能知道(如果getSignaledNextFireTime() != 0)
+         * //新的最早的火灾时间。我们可能不会(在这种情况下我们将假定)
+         * //新的时间比我们已经获得的触发器早)。
+         * //在这两种情况下，我们只想放弃我们获得的触发器和
+         * //如果“值得”，就去找一个新的吧。只有这样才值得
+         * //放弃触发器并获取新触发器所需的时间
+         * //小于当前获取的触发器触发的时间，
+         * //否则我们只是在“抖动”作业存储(例如数据库)。
+         * //
+         * //所以问题就变成了什么时候它“值得”?这取决于
+         * //作业存储实现(当然还有特定的数据库
+         * //或它后面的任何东西)。理想情况下，我们将依赖于作业存储
+         * //实现告诉我们它“思考”的时间
+         * //它可以放弃已获取的触发器并获取一个新的触发器。然而
+         * //我们目前没有让它告诉我们的工具，所以我们做
+         * //一个有教养但随意的猜测;-)。
+         */
 
         synchronized(sigLock) {
 

@@ -116,6 +116,10 @@ public interface Trigger extends Serializable, Cloneable, Comparable<Trigger> {
      * For example, a SimpleTrigger that fires every 15 seconds which has 
      * misfired for 5 minutes will fire 20 times once it gets the chance to 
      * fire.</p>
+     *
+     * 指示调度器，触发器将永远不会对失火情况进行评估，调度器将尝试尽可能快地触发它，然后更新触发器，就好像它已经在适当的时间触发了一样。
+     * 注意:如果一个触发器使用了这个指令，并且它错过了几个预定的触发，那么当触发器试图回到它应该在的位置时，可能会发生几个快速触发。
+     * 例如，一个每15秒发射一次的SimpleTrigger在5分钟内会发射20次。
      */
     public static final int MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY = -1;
     

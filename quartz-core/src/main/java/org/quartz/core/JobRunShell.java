@@ -47,6 +47,9 @@ import org.slf4j.LoggerFactory;
  * shell in a thread from the configured <code>ThreadPool</code> when the
  * scheduler determines that a <code>Job</code> has been triggered.
  * </p>
+ * JobRunShell实例负责为Job s的运行提供“安全”的环境，并负责执行Job的所有工作，捕获抛出的任何异常，用Job的完成代码更新触发器，等等。
+ * JobRunShell实例是由代表QuartzSchedulerThread的JobRunShellFactory创建的，
+ * 当调度器确定已经触发了一个Job时，QuartzSchedulerThread会在配置的ThreadPool中的线程中运行shell。
  *
  * @see JobRunShellFactory
  * @see org.quartz.core.QuartzSchedulerThread
@@ -124,6 +127,9 @@ public class JobRunShell extends SchedulerListenerSupport implements Runnable {
         JobDetail jobDetail = firedTriggerBundle.getJobDetail();
 
         try {
+            /**
+             * 使用反射创建Job对象
+             */
             job = sched.getJobFactory().newJob(firedTriggerBundle, scheduler);
         } catch (SchedulerException se) {
             sched.notifySchedulerListenersError(
@@ -151,6 +157,9 @@ public class JobRunShell extends SchedulerListenerSupport implements Runnable {
         qs.addInternalSchedulerListener(this);
 
         try {
+            /**
+             * jec:JobExecutionContextImpl
+             */
             OperableTrigger trigger = (OperableTrigger) jec.getTrigger();
             JobDetail jobDetail = jec.getJobDetail();
 
@@ -199,6 +208,10 @@ public class JobRunShell extends SchedulerListenerSupport implements Runnable {
                 // execute the job
                 try {
                     log.debug("Calling execute on job " + jobDetail.getKey());
+                    /**
+                     * job执行
+                     *
+                     */
                     job.execute(jec);
                     endTime = System.currentTimeMillis();
                 } catch (JobExecutionException jee) {

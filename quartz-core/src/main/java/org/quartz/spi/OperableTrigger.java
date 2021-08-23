@@ -21,7 +21,8 @@ public interface OperableTrigger extends MutableTrigger {
      * give the <code>Trigger</code> a chance to update itself for its next
      * triggering (if any).
      * </p>
-     * 
+     * Quartz客户机不应该使用此方法。
+     * 当Scheduler决定“触发”触发器(执行关联的Job)时调用，以便给触发器一个机会在下一次触发时更新自己(如果有的话)。
      * @see #executionComplete(JobExecutionContext, JobExecutionException)
      */
     public void triggered(Calendar calendar);

@@ -49,6 +49,7 @@ import org.quartz.spi.JobFactory;
  * 
  * @see org.quartz.Scheduler
  * @see org.quartz.core.QuartzScheduler
+ * Scheduler接口的实现，它直接将所有方法调用代理到给定的QuartzScheduler实例上的等效调用。
  *
  * @author James House
  */

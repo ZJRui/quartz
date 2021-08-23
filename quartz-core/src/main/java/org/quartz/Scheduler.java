@@ -94,6 +94,18 @@ import org.quartz.utils.Key;
  * The setup/configuration of a <code>Scheduler</code> instance is very
  * customizable. Please consult the documentation distributed with Quartz.
  * </p>
+ *
+ *
+ * 这是Quartz Scheduler的主界面。
+ * Scheduler维护JobDetails和Triggers的注册表。一旦注册，调度程序就负责在它们关联的触发器触发时(当它们的预定时间到达时)执行作业。
+ * 调度程序实例由SchedulerFactory生成。已经创建/初始化的调度器可以通过生产它的同一工厂找到并使用。在创建Scheduler之后，它处于“备用”模式，必须调用它的start()方法才能触发任何job。
+ * 作业由“客户端程序”创建，方法是定义一个实现Job接口的类。然后创建JobDetail对象(也由客户端创建)来定义Job的单个实例。JobDetail实例可以通过scheduleJob(JobDetail, Trigger)或addJob(JobDetail, boolean)方法向Scheduler注册。
+ * 然后可以定义触发器，以基于给定的调度触发单个Job实例。SimpleTrigger最适合一次性触发，或者在特定的时间点触发，它们之间以给定的延迟重复N次。CronTrigger允许基于日、周、月、年的时间进行调度。
+ * 作业和触发器有一个与它们关联的名称和组，该名称和组应该在一个调度程序中唯一地标识它们。“组”特性可能对创建Jobs和trigger的逻辑分组或分类有用。如果您不需要将一个组分配给给定的Jobs of Triggers，那么您可以使用在这个接口上定义的DEFAULT_GROUP常量。
+ * 存储的作业也可以通过使用triggerJob(String jobName, String jobGroup)函数“手动”触发。
+ * 客户端程序也可能对Quartz提供的“监听器”接口感兴趣。JobListener接口提供Job执行的通知。TriggerListener接口提供触发器触发的通知。SchedulerListener接口提供Scheduler事件和错误的通知。侦听器可以通过ListenerManager接口与本地调度器关联。
+ * Scheduler实例的设置/配置是非常可定制的。请参阅随Quartz一起分发的文档。
+ *
  * 
  * @see Job
  * @see JobDetail
@@ -120,6 +132,7 @@ public interface Scheduler {
     /**
      * A (possibly) useful constant that can be used for specifying the group
      * that <code>Job</code> and <code>Trigger</code> instances belong to.
+     * （可能）可用的常量，可用于指定作业 code>和触发 code>实例所属的组。
      */
     String DEFAULT_GROUP = Key.DEFAULT_GROUP;
 
@@ -127,6 +140,7 @@ public interface Scheduler {
      * A constant <code>Trigger</code> group name used internally by the
      * scheduler - clients should not use the value of this constant
      * ("RECOVERING_JOBS") for the name of a <code>Trigger</code>'s group.
+     * 调度器内部使用的一个常量触发器组名——客户端不应该使用这个常量的值(“RECOVERING_JOBS”)作为触发器组的名称。
      *
      * @see org.quartz.JobDetail#requestsRecovery()
      */
@@ -136,7 +150,7 @@ public interface Scheduler {
      * A constant <code>Trigger</code> group name used internally by the
      * scheduler - clients should not use the value of this constant
      * ("FAILED_OVER_JOBS") for the name of a <code>Trigger</code>'s group.
-     *
+     *调度器内部使用的常量触发器组名-客户端不应该使用这个常量的值(“FAILED_OVER_JOBS”)作为触发器组的名称。
      * @see org.quartz.JobDetail#requestsRecovery()
      */
     String DEFAULT_FAIL_OVER_GROUP = "FAILED_OVER_JOBS";
@@ -147,7 +161,7 @@ public interface Scheduler {
      * name of the original <code>Trigger</code> from a recovery trigger's
      * data map in the case of a job recovering after a failed scheduler
      * instance.
-     *
+     一个常量JobDataMap键，在调度程序实例失败后进行作业恢复的情况下，可以使用该键从恢复触发器的数据映射检索原始触发器的名称。
      * @see org.quartz.JobDetail#requestsRecovery()
      */
     String FAILED_JOB_ORIGINAL_TRIGGER_NAME =  "QRTZ_FAILED_JOB_ORIG_TRIGGER_NAME";
@@ -157,7 +171,7 @@ public interface Scheduler {
      * group of the original <code>Trigger</code> from a recovery trigger's
      * data map in the case of a job recovering after a failed scheduler
      * instance.
-     *
+     *一个常量JobDataMap键，在调度程序实例失败后进行作业恢复的情况下，可以使用该键从恢复触发器的数据映射检索原始触发器的组。
      * @see org.quartz.JobDetail#requestsRecovery()
      */
     String FAILED_JOB_ORIGINAL_TRIGGER_GROUP =  "QRTZ_FAILED_JOB_ORIG_TRIGGER_GROUP";
@@ -171,6 +185,8 @@ public interface Scheduler {
      * <p>Note that this is the time the original firing actually occurred,
      * which may be different from the scheduled fire time - as a trigger doesn't
      * always fire exactly on time.</p>
+     * 一个常量JobDataMap键，在调度程序实例失败后进行作业恢复的情况下，可以使用该键从恢复触发器的数据映射检索原始触发器的触发时间。
+     * 注意，这是原始触发实际发生的时间，可能与预定的触发时间不同——因为触发器并不总是准确地按时间触发。
      *
      * @see org.quartz.JobDetail#requestsRecovery()
      */
@@ -185,7 +201,8 @@ public interface Scheduler {
      * <p>Note that this is the time the original firing was scheduled for,
      * which may be different from the actual firing time - as a trigger doesn't
      * always fire exactly on time.</p>
-     *
+     *一个常量JobDataMap键，在调度程序实例失败后进行作业恢复的情况下，可以使用该键从恢复触发器的数据映射检索原始触发器的预定触发时间。
+     * 请注意，这是原发射计划的时间，可能与实际发射时间不同——因为触发器并不总是准确地按时间发射。
      * @see org.quartz.JobDetail#requestsRecovery()
      */
     String FAILED_JOB_ORIGINAL_TRIGGER_SCHEDULED_FIRETIME_IN_MILLISECONDS =  "QRTZ_FAILED_JOB_ORIG_TRIGGER_SCHEDULED_FIRETIME_IN_MILLISECONDS_AS_STRING";
@@ -229,7 +246,8 @@ public interface Scheduler {
      * The misfire/recovery process will be started, if it is the initial call
      * to this method on this scheduler instance.
      * </p>
-     * 
+     * 启动调度程序的线程来触发触发器。当调度程序第一次被创建时，它处于“备用”模式，不会触发触发器。还可以通过调用standby()方法将调度器置于备用模式。
+     * 如果是对调度程序inst上的这个方法的初始调用，则会启动失败/恢复进程
      * @throws SchedulerException
      *           if <code>shutdown()</code> has been called, or there is an
      *           error within the <code>Scheduler</code>.
@@ -245,7 +263,8 @@ public interface Scheduler {
      * (This call does not block). This can be useful within applications that
      * have initializers that create the scheduler immediately, before the
      * resources needed by the executing jobs have been fully initialized.
-     *
+     *在指定的秒数之后调用{#start()}。(此调用不会阻塞)。这在具有初始化器的应用程序中非常有用，
+     * 初始化器会在执行作业所需的资源完全初始化之前立即创建调度器。
      * @throws SchedulerException
      *           if <code>shutdown()</code> has been called, or there is an
      *           error within the <code>Scheduler</code>.
@@ -265,7 +284,9 @@ public interface Scheduler {
      * if the <code>Scheduler</code> is currently in standby mode or has been 
      * since shutdown.
      * </p>
-     * 
+     * 是否已启动调度程序。
+     * 注意:这只反映了是否在这个调度器上调用过start()，所以即使调度器当前处于备用模式或关闭后一直处于备用模式，它也会返回true。
+     * 这个方法的内部实现是根据启动日期返回的，也就是调用start方法的日期，如果启动日期不为空则 表示started。
      * @see #start()
      * @see #isShutdown()
      * @see #isInStandbyMode()
@@ -286,7 +307,9 @@ public interface Scheduler {
      * <p>
      * The scheduler is not destroyed, and can be re-started at any time.
      * </p>
-     * 
+     * 暂时停止调度程序对触发器的触发。
+     * 当start()被调用时(使调度程序退出备用模式)，触发器失败指令将不会在start()方法执行期间被应用——任何失败都会在之后立即被检测到(由JobStore的正常进程)。
+     * 调度程序不会被销毁，并且可以在任何时候重新启动。
      * @see #start()
      * @see #pauseAll()
      */
@@ -308,7 +331,9 @@ public interface Scheduler {
      * <p>
      * The scheduler cannot be re-started.
      * </p>
-     * 
+     *
+     * 停止调度器触发触发器，并清除与调度器关联的所有资源。相当于关闭(false)。
+     * 无法重新启动调度程序。
      * @see #shutdown(boolean)
      */
     void shutdown() throws SchedulerException;

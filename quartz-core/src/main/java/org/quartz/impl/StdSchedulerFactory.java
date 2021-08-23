@@ -876,6 +876,9 @@ public class StdSchedulerFactory implements SchedulerFactory {
         }
 
         try {
+            /**
+             * 这里创建一个JOBStore对象，默认是RAMJobStore.class
+             */
             js = (JobStore) loadHelper.loadClass(jsClass).newInstance();
         } catch (Exception e) {
             initException = new SchedulerException("JobStore class '" + jsClass
@@ -1280,7 +1283,10 @@ public class StdSchedulerFactory implements SchedulerFactory {
                 
                 jjs.setThreadExecutor(threadExecutor);
             }
-    
+
+            /**
+             *
+             */
             QuartzSchedulerResources rsrcs = new QuartzSchedulerResources();
             rsrcs.setName(schedName);
             rsrcs.setThreadName(threadName);
@@ -1322,18 +1328,29 @@ public class StdSchedulerFactory implements SchedulerFactory {
             }
             tp.initialize();
             tpInited = true;
-    
+
+            /**
+             * 通过QuartzSchedulerResource对象持有JobStore对象
+             */
             rsrcs.setJobStore(js);
     
             // add plugins
             for (int i = 0; i < plugins.length; i++) {
                 rsrcs.addSchedulerPlugin(plugins[i]);
             }
-    
+
+            /**
+             * 创建一个QuartzScheduler对象。 StdScheduler作为Scheduler接口的 实现类，但是其内部逻辑都是委托给QuartzScheduler实现的
+             *
+             */
             qs = new QuartzScheduler(rsrcs, idleWaitTime, dbFailureRetry);
             qsInited = true;
     
             // Create Scheduler ref...
+            /**
+             * 创建StdScheduler对象， StdScheduler对象中通过sched 属性 持有QuartzScheduler
+             * 然后QuartzScheduler对象通过resources属性持有QuartzSchedulerResources
+             */
             Scheduler scheduler = instantiate(rsrcs, qs);
     
             // set job factory if specified

@@ -462,6 +462,14 @@ public class SimpleTriggerImpl extends AbstractTrigger<SimpleTrigger> implements
      * </li>
      * </ul>
      * </p>
+     *
+     * 基于在创建SimpleTrigger时选择的MISFIRE_INSTRUCTION_XXX更新SimpleTrigger的状态。
+     * 如果失火指令设置为MISFIRE_INSTRUCTION_SMART_POLICY，则将使用以下方案：
+     *
+     * •如果重复计数为0，则指令将解释为MISFIRE_INSTRUCTION_FIRE_NOW。
+     * •如果重复计数为REPEAT_INDEFINITELY，则指令将解释为MISFIRE_INSTRUCTION_RESCHEDULE_NEXT_WITH_REMAINING_COUNT。 警告：如果触发器具有非空的结束时间，则使用MISFIRE_INSTRUCTION_RESCHEDULE_NEXT_WITH_REMAINING_COUNT可能会导致触发器在失火时间范围内到达结束时，不会再次触发。
+     * •如果重复计数大于0，则指令将解释为MISFIRE_INSTRUCTION_RESCHEDULE_NOW_WITH_EXISTING_REPEAT_COUNT。
+     *
      */
     @Override
     public void updateAfterMisfire(Calendar cal) {
@@ -571,7 +579,7 @@ public class SimpleTriggerImpl extends AbstractTrigger<SimpleTrigger> implements
      * give the <code>Trigger</code> a chance to update itself for its next
      * triggering (if any).
      * </p>
-     * 
+     * 当Scheduler决定“触发”触发器(执行关联的Job)时调用，以便给触发器一个机会在下一次触发时更新自己(如果有的话)。
      * @see #executionComplete(JobExecutionContext, JobExecutionException)
      */
     @Override
