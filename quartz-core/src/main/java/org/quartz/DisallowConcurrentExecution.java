@@ -27,7 +27,7 @@ import java.lang.annotation.Target;
  * An annotation that marks a {@link Job} class as one that must not have multiple
  * instances executed concurrently (where instance is based-upon a {@link JobDetail} 
  * definition - or in other words based upon a {@link JobKey}).
- *
+ *将Job类标记为不能同时执行多个实例的注释(其中实例基于JobDetail定义——或者换句话说基于JobKey)。
  * @see PersistJobDataAfterExecution
  * 
  * @author jhouse

@@ -437,12 +437,19 @@ public class QuartzSchedulerThread extends Thread {
                     if (triggers != null && !triggers.isEmpty()) {
 
                         now = System.currentTimeMillis();
+                        /**
+                         * 第一个要被触发的trigger
+                         */
                         long triggerTime = triggers.get(0).getNextFireTime().getTime();
                         long timeUntilTrigger = triggerTime - now;
                         /**
                          * 下次触发的时间举例当前时间大于2毫秒
                          */
                         while(timeUntilTrigger > 2) {
+
+                            /**
+                             * 这里使用了synchronize，下面 会调用SIGLock的wait
+                             */
                             synchronized (sigLock) {
                                 if (halted.get()) {
                                     break;
@@ -476,6 +483,9 @@ public class QuartzSchedulerThread extends Thread {
                                 break;
                             }
                             now = System.currentTimeMillis();
+                            /**
+                             * 重新计算trigger的触发时间和当前时间的差值，进入while进行判断是否跳出while
+                             */
                             timeUntilTrigger = triggerTime - now;
                         }
 
@@ -501,6 +511,19 @@ public class QuartzSchedulerThread extends Thread {
                                                 + triggers + "'", se);
                                 //QTZ-179 : a problem occurred interacting with the triggers from the db
                                 //we release them and loop again
+                                /**
+                                 *与数据库中的触发器交互时发生了问题
+                                 * //我们释放它们并再次循环
+                                 *
+                                 * 首先trigger的状态是org.quartz.simpl.TriggerWrapper#STATE_WAITING，在上面的 qsRsrcs.getJobStore().acquireNextTriggers
+                                 * 方法中获取trigger的时候 会将符合条件的trigger的状态设置为  tw.state = TriggerWrapper.STATE_ACQUIRED;
+                                 *
+                                 * 然后在上面的triggersFired方法中会遍历获取到的Trigger，判断 如果trigger的状态不是acquired则跳过该trigger ：tw.state != TriggerWrapper.STATE_ACQUIRED
+                                 *
+                                 * 在这里如果上面的triggersFired方法出现异常，在下面将通过releaseAcquiredTrigger方法将 trigger的状态设置为wait：  tw.state = TriggerWrapper.STATE_WAITING;
+                                 * 然后执行continue ，也就是跳到while开头，继续开始acquireNextTriggers-》triggersFired
+                                 *
+                                 */
                                 for (int i = 0; i < triggers.size(); i++) {
                                     qsRsrcs.getJobStore().releaseAcquiredTrigger(triggers.get(i));
                                 }
@@ -523,6 +546,11 @@ public class QuartzSchedulerThread extends Thread {
                             // it's possible to get 'null' if the triggers was paused,
                             // blocked, or other similar occurrences that prevent it being
                             // fired at this time...  or if the scheduler was shutdown (halted)
+                            /**
+                             * //如果触发器被暂停，可能会得到'null'，
+                             * //被阻塞，或其他类似的事件阻止它
+                             * //在这个时候开火…或者如果调度程序被关闭(停止)
+                             */
                             if (bndle == null) {
                                 qsRsrcs.getJobStore().releaseAcquiredTrigger(triggers.get(i));
                                 continue;

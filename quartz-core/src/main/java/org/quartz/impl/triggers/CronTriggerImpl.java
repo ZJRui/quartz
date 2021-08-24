@@ -81,6 +81,9 @@ public class CronTriggerImpl extends AbstractTrigger<CronTrigger> implements Cro
     private Date startTime = null;
     private Date endTime = null;
     private Date nextFireTime = null;
+    /**
+     * 返回触发触发器的上一次时间。如果触发器尚未触发，则返回null。
+     */
     private Date previousFireTime = null;
     private transient TimeZone timeZone = null;
 

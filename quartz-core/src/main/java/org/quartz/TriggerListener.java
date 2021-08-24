@@ -107,6 +107,9 @@ public interface TriggerListener {
      * 
      * @param trigger
      *          The <code>Trigger</code> that has misfired.
+     *
+     *          当触发器未启动时由调度程序调用。
+     * 应该考虑在这个方法中花费了多少时间，因为它将影响所有未触发的触发器。如果你有很多触发器同时失效，这可能是一个问题，因为这个方法做了很多。
      */
     void triggerMisfired(Trigger trigger);
 

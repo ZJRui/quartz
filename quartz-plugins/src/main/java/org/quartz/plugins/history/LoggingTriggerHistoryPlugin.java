@@ -208,6 +208,102 @@ import org.quartz.spi.SchedulerPlugin;
  * </p>
  * 
  * @author James House
+ * 公共类LoggingTriggerHistoryPlugin . org.quartz.plugins.history
+ * 扩展对象
+ * 实现了SchedulerPlugin, TriggerListener
+ * 通过Jakarta Commons-Logging框架记录所有触发器触发的历史。
+ * 通过将下列消息属性之一设置为符合java.util.MessageFormat语法的String，可以自定义记录的消息。
+ * TriggerFiredMessage -可用的消息数据有:
+ * 元素
+ * 数据类型
+ * 描述
+ * 0
+ * 字符串
+ * 触发器的名字。
+ * 1
+ * 字符串
+ * 触发器的小组。
+ * 2
+ * 日期
+ * 预定的点火时间。
+ * 3.
+ * 日期
+ * 下一个预定的点火时间。
+ * 4
+ * 日期
+ * 实际的着火时间。
+ * 5
+ * 字符串
+ * 工作的名称。
+ * 6
+ * 字符串
+ * 工作的组织。
+ * 7
+ * 整数
+ * JobExecutionContext的重新启动计数。
+ * 默认消息文本是“触发{1}。{0}被解雇了。{5} at: {4, date, HH:mm:ss mm /dd/yyyy}"
+ * TriggerMisfiredMessage -可用的消息数据有:
+ * 元素
+ * 数据类型
+ * 描述
+ * 0
+ * 字符串
+ * 触发器的名字。
+ * 1
+ * 字符串
+ * 触发器的小组。
+ * 2
+ * 日期
+ * 预定的点火时间。
+ * 3.
+ * 日期
+ * 下一个预定的点火时间。
+ * 4
+ * 日期
+ * 实际的着火时间。(探测到/处理失败的时间)
+ * 5
+ * 字符串
+ * 工作的名称。
+ * 6
+ * 字符串
+ * 工作的组织。
+ * 默认消息文本是“触发{1}。被炒鱿鱼的工作。{5} at: {4, date, HH:mm:ss mm /dd/yyyy}。应该在:{3,date, HH:mm:ss mm /dd/yyyy}"
+ * TriggerCompleteMessage -可用的消息数据有:
+ * 元素
+ * 数据类型
+ * 描述
+ * 0
+ * 字符串
+ * 触发器的名字。
+ * 1
+ * 字符串
+ * 触发器的小组。
+ * 2
+ * 日期
+ * 预定的点火时间。
+ * 3.
+ * 日期
+ * 下一个预定的点火时间。
+ * 4
+ * 日期
+ * 工作完成时间。
+ * 5
+ * 字符串
+ * 工作的名称。
+ * 6
+ * 字符串
+ * 工作的组织。
+ * 7
+ * 整数
+ * JobExecutionContext的重新启动计数。
+ * 8
+ * 整数
+ * 触发器产生的指令代码。
+ * 9
+ * 字符串
+ * 人类可读的触发器结果指令代码的翻译。
+ * 默认消息文本是“触发{1}。{0}完成解雇任务{6}{5} at {4, date, HH:mm:ss mm /dd/yyyy}，触发指令代码:{9}"
+ * quartz-plugins
  */
 public class LoggingTriggerHistoryPlugin implements SchedulerPlugin,
         TriggerListener {

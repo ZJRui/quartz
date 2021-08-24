@@ -178,6 +178,8 @@ public class RAMJobStore implements JobStore {
      * The number of milliseconds by which a trigger must have missed its
      * next-fire-time, in order for it to be considered "misfired" and thus
      * have its misfire instruction applied.
+     * 一个触发器错过下一次发射时间的毫秒数，以使它被认为是“未发射”，
+     * 从而应用它的未发射指令。
      * 
      * @param misfireThreshold the new misfire threshold
      */
@@ -410,6 +412,13 @@ public class RAMJobStore implements JobStore {
      */
     public void storeTrigger(OperableTrigger newTrigger,
             boolean replaceExisting) throws JobPersistenceException {
+
+        /**
+         * 参数是OperableTrigger 比如SimpleTriggerImpl,
+         * Trigger中包含了triggerKey和JObKey
+         * TriggerKey getKey();  TriggerKey有两个参数信息：TriggerKey(String name, String group)
+         * JobKey getJobKey();JobKey也有两个信息： JobKey(String name, String group)
+         */
         TriggerWrapper tw = new TriggerWrapper((OperableTrigger)newTrigger.clone());
 
         synchronized (lock) {
@@ -428,6 +437,9 @@ public class RAMJobStore implements JobStore {
             }
 
             // add to triggers by job
+            /**
+             * 获取Job的的trigger List
+             */
             List<TriggerWrapper> jobList = triggersByJob.get(tw.jobKey);
             if(jobList == null) {
                 jobList = new ArrayList<TriggerWrapper>(1);
@@ -445,6 +457,19 @@ public class RAMJobStore implements JobStore {
             // add to triggers by FQN map
             triggersByKey.put(tw.key, tw);
 
+            /**
+             * 判断 trigger的TriggerKey是否在pausedTriggerGroups， jobkey是否在pausedJobGroups
+             * jobKey是否在blockedJobs中
+             *
+             * 如果都不在，此时将trigger添加到timeTriggers中。
+             *
+             * 注意点： 我们storeTrigger的时候 会将这个trigger放置到很多地方，比如放置到 triggersByKey，triggersByGroup，triggersByJob等地方
+             *
+             * 但是在QuartzSchedulerThread的run方法中，会通过acquireNextTriggers方法获取 需要执行的trigger，这个trigger的获取是遍历timeTriggers中的tigger
+             * 因此也就是说假设Trigger不在timeTriggers中，则不会被触发。所以关键点是storeTrigger的时候将Trigger放置到timeTriggers中。
+             * 但是我们发现将Trigger放置到timeTriggers中是有前提条件的：triggerKey不在pausedTriggerGroups、pausedJobGroups、blockedJobs中
+             *
+             */
             if (pausedTriggerGroups.contains(newTrigger.getKey().getGroup())
                     || pausedJobGroups.contains(newTrigger.getJobKey().getGroup())) {
                 tw.state = TriggerWrapper.STATE_PAUSED;
@@ -500,6 +525,10 @@ public class RAMJobStore implements JobStore {
                
                 timeTriggers.remove(tw);
 
+                /**
+                 * removeOrphanedJob是否连带删除Job
+                 *
+                 */
                 if (removeOrphanedJob) {
                     JobWrapper jw = jobsByKey.get(tw.jobKey);
                     List<OperableTrigger> trigs = getTriggersForJob(tw.jobKey);
@@ -573,6 +602,7 @@ public class RAMJobStore implements JobStore {
      * </p>
      *
      * @return The desired <code>Job</code>, or null if there is no match.
+     * 检索给定Job的JobDetail。
      */
     public JobDetail retrieveJob(JobKey jobKey) {
         synchronized(lock) {
@@ -683,6 +713,10 @@ public class RAMJobStore implements JobStore {
      * <p>The result will be the trigger returning to the normal, waiting to
      * be fired state, unless the trigger's group has been paused, in which
      * case it will go into the PAUSED state.</p>
+     *
+     * 将已识别的触发器的当前状态从Trigger. triggerstate . error重置为Trigger. triggerstate . normal或Trigger. triggerstate . paused。
+     * 只影响处于ERROR状态的触发器——如果标识的触发器不在该状态，则结果为no-op。
+     * 结果将是触发器返回到正常状态，等待被触发，除非触发器的组已经暂停，在这种情况下它将进入暂停状态。
      */
     public void resetTriggerFromErrorState(final TriggerKey triggerKey) throws JobPersistenceException {
 
@@ -694,10 +728,17 @@ public class RAMJobStore implements JobStore {
                 return;
             }
             // is the trigger in error state?
+            /**
+             * 如果trigger的状态不等于error则返回
+             */
             if (tw.state != TriggerWrapper.STATE_ERROR) {
                 return;
             }
 
+            /**
+             * 如果在paused中则设置为paused，否则将其设置为waiting，并将其添加到timeTriggers中。
+             * 从这里我们发现 timeTriggers中的trigger应该都是 waiting状态的
+             */
             if(pausedTriggerGroups.contains(triggerKey.getGroup())) {
                 tw.state = TriggerWrapper.STATE_PAUSED;
             }
@@ -1055,7 +1096,7 @@ public class RAMJobStore implements JobStore {
      * <p>
      * Pause the <code>{@link Trigger}</code> with the given name.
      * </p>
-     *
+     *使用给定的名称暂停触发器。
      */
     public void pauseTrigger(TriggerKey triggerKey) {
 
@@ -1068,16 +1109,27 @@ public class RAMJobStore implements JobStore {
             }
     
             // if the trigger is "complete" pausing it does not make sense...
+            /**
+             * 如果触发器是“完成的”暂停，它没有意义…
+             * 如果trigger是完成状态则返回
+             */
             if (tw.state == TriggerWrapper.STATE_COMPLETE) {
                 return;
             }
 
+            /**
+             * 如果触发器是block 则设置为paused_block。 否则设置为paused。
+             *
+             */
             if(tw.state == TriggerWrapper.STATE_BLOCKED) {
                 tw.state = TriggerWrapper.STATE_PAUSED_BLOCKED;
             } else {
                 tw.state = TriggerWrapper.STATE_PAUSED;
             }
 
+            /**
+             * 注意从这里我们看到处于paused状态的trigger将会被从timeTriggers中移除
+             */
             timeTriggers.remove(tw);
         }
     }
@@ -1092,7 +1144,8 @@ public class RAMJobStore implements JobStore {
      * pause on any new triggers that are added to one of these groups while the group is
      * paused.
      * </p>
-     *
+     *暂停所有已知的匹配触发器。
+     * JobStore应该“记住”暂停的组，并对在暂停组时添加到其中一个组的任何新触发器强制暂停。
      */
     public List<String> pauseTriggers(GroupMatcher<TriggerKey> matcher) {
 
@@ -1134,7 +1187,7 @@ public class RAMJobStore implements JobStore {
      * Pause the <code>{@link org.quartz.JobDetail}</code> with the given
      * name - by pausing all of its current <code>Trigger</code>s.
      * </p>
-     *
+     *暂停指定名称的JobDetail—通过暂停它的所有当前触发器。
      */
     public void pauseJob(JobKey jobKey) {
         synchronized (lock) {
@@ -1202,7 +1255,8 @@ public class RAMJobStore implements JobStore {
      * If the <code>Trigger</code> missed one or more fire-times, then the
      * <code>Trigger</code>'s misfire instruction will be applied.
      * </p>
-     *
+     *使用给定键恢复(取消暂停)触发器。
+     * 如果触发器错过一个或多个触发时间，那么触发器的失败指令将被应用。
      */
     public void resumeTrigger(TriggerKey triggerKey) {
 
@@ -1217,11 +1271,17 @@ public class RAMJobStore implements JobStore {
             OperableTrigger trig = tw.getTrigger();
     
             // if the trigger is not paused resuming it does not make sense...
+            /**
+             * 如果触发器没有被暂停，那么恢复是没有意义的。
+             */
             if (tw.state != TriggerWrapper.STATE_PAUSED &&
                     tw.state != TriggerWrapper.STATE_PAUSED_BLOCKED) {
                 return;
             }
 
+            /**
+             * 如果block中包含，则将其你设置为blocked状态，否则将其设置为waiting状态
+             */
             if(blockedJobs.contains( trig.getJobKey() )) {
                 tw.state = TriggerWrapper.STATE_BLOCKED;
             } else {
@@ -1230,7 +1290,11 @@ public class RAMJobStore implements JobStore {
 
             applyMisfire(tw);
 
+            /**
+             * 如果是waiting状态则将其添加到timeTriggers
+             */
             if (tw.state == TriggerWrapper.STATE_WAITING) {
+
                 timeTriggers.add(tw);
             }
         }
@@ -1400,12 +1464,20 @@ public class RAMJobStore implements JobStore {
 
     protected boolean applyMisfire(TriggerWrapper tw) {
 
+        /**
+         * 当前时间为10000，misfireThreshold为100，
+         * misfireTime=misfireTime-misfireThreshold=19900
+         */
         long misfireTime = System.currentTimeMillis();
         if (getMisfireThreshold() > 0) {
             misfireTime -= getMisfireThreshold();
         }
 
         Date tnft = tw.trigger.getNextFireTime();
+        /**
+         *  tnft.getTime() > misfireTime  下次触发的时间大于 误差时间。
+         *  比如下次触发的时间是明天12点，误差允许时间为今天下午六点半前，这个时候这个trigger不符合条件，因此返回false
+         */
         if (tnft == null || tnft.getTime() > misfireTime 
                 || tw.trigger.getMisfireInstruction() == Trigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY) { 
             return false; 
@@ -1424,6 +1496,9 @@ public class RAMJobStore implements JobStore {
             tw.state = TriggerWrapper.STATE_COMPLETE;
             signaler.notifySchedulerListenersFinalized(tw.trigger);
             synchronized (lock) {
+                /**
+                 * 当trigger的state为complete的时候会将其从timeTriggers中移除
+                 */
                 timeTriggers.remove(tw);
             }
         } else if (tnft.equals(tw.trigger.getNextFireTime())) {
@@ -1469,6 +1544,19 @@ public class RAMJobStore implements JobStore {
      *     PRIORITY DESC
      *   Sql:  org.quartz.impl.jdbcjobstore.StdJDBCConstants#SELECT_INSTANCES_FIRED_TRIGGERS
      * @see #releaseAcquiredTrigger(OperableTrigger)
+     *
+     * ==============================================================
+     * 调度线程会一次性拉取距离现在一定时间窗口内的、一定数量内的、即将触发的trigger信息。那么，时间窗口和数量信息如何确定呢？我们先来看一下，以下几个参数：
+     *
+     * idleWaitTime： 默认30s，可通过配置属性org.quartz.scheduler.idleWaitTime设置。
+     * availThreadCount：获取可用（空闲）的工作线程数量，总会大于1，因为该方法会一直阻塞，直到有工作线程空闲下来。
+     * maxBatchSize：一次拉取trigger的最大数量，默认是1，可通过org.quartz.scheduler.batchTriggerAcquisitionMaxCount改写。
+     * batchTimeWindow：时间窗口调节参数，默认是0，可通过org.quartz.scheduler.batchTriggerAcquisitionFireAheadTimeWindow改写。
+     * misfireThreshold： 超过这个时间还未触发的trigger，被认为发生了misfire，默认60s，可通过org.quartz.jobStore.misfireThreshold设置。
+     * 调度线程一次会拉取NEXT_FIRETIME小于（now + idleWaitTime +batchTimeWindow）,大于（now - misfireThreshold）的，
+     * min(availThreadCount,maxBatchSize)个triggers，默认情况下，会拉取未来30s、过去60s之间还未fire的1个trigger。
+     * 随后将这些triggers的状态由WAITING改为ACQUIRED，并插入firedtriggers表。
+     *
      */
     public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow) {
         synchronized (lock) {
@@ -1478,16 +1566,23 @@ public class RAMJobStore implements JobStore {
             long batchEnd = noLaterThan;
             
             // return empty list if store has no triggers.
+            /**
+             * 注意从这里我们看到acquireNextTriggers 获取将要被触发的trigger是从timeTriggers中获取的，因为
+             * timeTriggers是一个TreeSet，按照trigger的下次触发时间排序的
+             */
             if (timeTriggers.size() == 0)
                 return result;
-            
             while (true) {
+                //遍历每一个trigger
                 TriggerWrapper tw;
 
                 try {
                     /**
                      * timeTriggers是一个TreeSet ，元素之间使用下次触发时间排序。
                      * 这里是获取第一个被触发的job，如果tw不为null，则执行remove， 然后下次循环的时候会又1取第一个，因此这就实现了对TreeSet的遍历
+                     *
+                     *
+                     *
                      */
                     tw = timeTriggers.first();
                     if (tw == null)
@@ -1497,12 +1592,19 @@ public class RAMJobStore implements JobStore {
                     break;
                 }
 
+                /**
+                 * 返回触发器计划下一次触发的时间。如果触发器不会再次触发，则返回null。注意，返回的时间可能是过去的时间，如果为触发器计算的下一次触发的时间已经到达，但是调度器还不能触发触发器(这可能是由于缺乏资源，例如线程)。
+                 * 在将Trigger添加到调度器之前，不能保证返回的值是有效的。
+                 */
                 if (tw.trigger.getNextFireTime() == null) {
                     continue;
                 }
 
                 /**
                  * applyMisfire 判断是否在误差延迟触发范围之内
+                 *
+                 * applyMisfire返回true表示trigger的下次触发时间 在允许误差时间内，比如下次触发时间为六点，允许误差时间Wie六点10秒
+                 *
                  */
                 if (applyMisfire(tw)) {
                     if (tw.trigger.getNextFireTime() != null) {
@@ -1511,6 +1613,9 @@ public class RAMJobStore implements JobStore {
                     continue;
                 }
 
+                /**
+                 * trigger的触发时间是否在指定的时间范围内。
+                 */
                 if (tw.getTrigger().getNextFireTime().getTime() > batchEnd) {
                     timeTriggers.add(tw);
                     break;
@@ -1518,10 +1623,22 @@ public class RAMJobStore implements JobStore {
                 
                 // If trigger's job is set as @DisallowConcurrentExecution, and it has already been added to result, then
                 // put it back into the timeTriggers set and continue to search for next trigger.
+                /**
+                 * //如果触发器的job被设置为@DisallowConcurrentExecution，并且它已经被添加到result中，则
+                 * //将它放回timeTriggers集合并继续搜索下一个触发器。
+                 */
                 JobKey jobKey = tw.trigger.getJobKey();
                 JobDetail job = jobsByKey.get(tw.trigger.getJobKey()).jobDetail;
+                /**
+                 * 判断jobDetail上是否存在@DisallowConcurrentExecution注解。该注解：将Job类标记为不能同时执行多个实例的注释(其中实例基于JobDetail定义——或者换句话说基于JobKey)。
+                 * 存在注解返回true
+                 */
                 if (job.isConcurrentExectionDisallowed()) {
                     if (acquiredJobKeysForNoConcurrentExec.contains(jobKey)) {
+                        /**
+                         * 如果acquiredJobKeysForNoConcurrentExec中有jobKey，则将trigger放入excludedTriggers
+                         * 在后面excludedTriggers中的trigger将会被放置到timeTriggers中
+                         */
                         excludedTriggers.add(tw);
                         continue; // go to next trigger in store.
                     } else {
@@ -1529,12 +1646,45 @@ public class RAMJobStore implements JobStore {
                     }
                 }
 
+                /**
+                 * 将trigger的状态设置为State_acquired,
+                 *
+                 * 后面在triggersFired方法中会遍历当前acquireNextTriggers方法返回的每一个Trigger，
+                 * 遍历过程中如果trigger的状态不是state_acquired则会跳过该trigger
+                 *
+                 *
+                 * trigger的初始状态是WAITING，处于WAITING状态的trigger等待被触发。调度线程会不停地扫triggers表，
+                 * 根据NEXTFIRETIME提前拉取即将触发的trigger，如果这个trigger被该调度线程拉取到，它的状态就会变为ACQUIRED。
+                 * 因为是提前拉取trigger，并未到达trigger真正的触发时刻，所以调度线程会等到真正触发的时刻，再将trigger状态由ACQUIRED改为EXECUTING。
+                 * 如果这个trigger不再执行，就将状态改为COMPLETE，否则为WAITING，开始新的周期。如果这个周期中的任何环节抛出异常，
+                 * trigger的状态会变成ERROR。如果手动暂停这个trigger，状态会变成PAUSED。
+                 *
+                 *
+                 *
+                 *What does BLOCKED state mean for Quartz trigger
+                 * Perhaps some search would help before posting a question here?
+                 *
+                 * WAITING = the normal state of a trigger, waiting for its fire time to arrive and be acquired for firing by a scheduler.
+                 *
+                 * PAUSED = means that one of the scheduler.pauseXXX() methods was used. The trigger is not eligible for being fired until it is resumed.
+                 *
+                 * ACQUIRED = a scheduler node has identified this trigger as the next trigger it will fire - may still be waiting for its fire time to arrive. After it fires the trigger will be updated (per its repeat settings, if any) and placed back into the WAITING state (or be deleted if it does not repeat again).
+                 *
+                 * BLOCKED = the trigger is prevented from being fired because it relates to a StatefulJob that is already executing. When the statefuljob completes its execution, all triggers relating to that job will return to the WAITING state.
+                 *
+                 * In other words, When a state is BLOCKED, another trigger (or an instance of this trigger) is already executing for the trigger's stateful job, so this trigger is blocked until the other trigger is finished.
+                 *
+                 * Link to documentation could be useful for your future reference.http://www.docjar.com/docs/api/org/quartz/Trigger.html
+                 */
                 tw.state = TriggerWrapper.STATE_ACQUIRED;
                 tw.trigger.setFireInstanceId(getFiredTriggerRecordId());
                 OperableTrigger trig = (OperableTrigger) tw.trigger.clone();
                 if (result.isEmpty()) {
                     batchEnd = Math.max(tw.trigger.getNextFireTime().getTime(), System.currentTimeMillis()) + timeWindow;
                 }
+                /**
+                 * 将Trigger放入result中，result中是将要被触发的trigger
+                 */
                 result.add(trig);
                 if (result.size() == maxCount)
                     break;
@@ -1579,7 +1729,6 @@ public class RAMJobStore implements JobStore {
 
         synchronized (lock) {
             List<TriggerFiredResult> results = new ArrayList<TriggerFiredResult>();
-            timeTriggers.stream().filter(trigger-> trigger.getTrigger().getJobKey().getName().contains("")).collect(Collectors.toList());
 
             for (OperableTrigger trigger : firedTriggers) {
                 TriggerWrapper tw = triggersByKey.get(trigger.getKey());
@@ -1590,6 +1739,9 @@ public class RAMJobStore implements JobStore {
                 // was the trigger completed, paused, blocked, etc. since being acquired?
                 /**
                  * //触发器是否被完成，暂停，阻塞等?
+                 *
+                 * 如果Trigger的状态不是state_acuired则跳过该trigger，问题为什么？
+                 *
                  */
                 if (tw.state != TriggerWrapper.STATE_ACQUIRED) {
                     continue;
@@ -1603,13 +1755,21 @@ public class RAMJobStore implements JobStore {
                 }
                 Date prevFireTime = trigger.getPreviousFireTime();
                 // in case trigger was replaced between acquiring and firing
+                /**
+                 * 以防在射击和射击之间更换触发器
+                 */
                 timeTriggers.remove(tw);
                 /**
                  *调用我们的副本，还有调度程序的副本
+                 *在trigger的trigger方法中，trigger会执行自身的更新操作，比如 将上一次触发的时间设置为trigger中保存的下一次触发的时间，然后计算更新下一次触发的时间，
                  */
                 // call triggered on our copy, and the scheduler's copy
                 tw.trigger.triggered(cal);
                 trigger.triggered(cal);
+                /**
+                 * 这个地方有个问题，上面的代码中会判断当前的trigger的状态是否是acquired，如果不是则跳过。
+                 * 因此这里trigger的状态必然是acquired，正常情况下下一个状态应该是executing，为什么下面的代码将状态设置为waiting？
+                 */
                 //tw.state = TriggerWrapper.STATE_EXECUTING;
                 tw.state = TriggerWrapper.STATE_WAITING;
 
@@ -1620,7 +1780,20 @@ public class RAMJobStore implements JobStore {
 
                 JobDetail job = bndle.getJobDetail();
 
+                /**
+                 * 如果job不能同时执行多个实例，则将其他trigger的桩体设置为blocked
+                 */
                 if (job.isConcurrentExectionDisallowed()) {
+                    /**
+                     * 这里getTriggerWrappersForJob 是从triggersByJob中获取Job的所有Trigger，然后将该Job的所有trigger设置为block状态
+                     * 然后将Job放置到blockedJobs中。同时会将该Job的所有trigger从timeTriggers中移除，这样下次遍历timeTriggers的时候就拿不到该Job的trigger
+                     * 然后在Job执行完成的时候 ，也就是JobRunShell的run方法的最后会执行notifyJobStoreJobComplete，此时会执行
+                     *   resources.getJobStore().triggeredJobComplete(trigger, detail, instCode);
+                     *   在RAMJobStore的triggeredJobComplete中执行 blockedJobs.remove(jd.getKey()); 将该Job从block队列中
+                     *   移除，同时会将对应的JobTrigger的状态设置为waiting，并将trigger放置到 timeTriggers中。
+                     *   ttw.state = TriggerWrapper.STATE_WAITING;
+                     *                             timeTriggers.add(ttw);
+                     */
                     ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(job.getKey());
                     for (TriggerWrapper ttw : trigs) {
                         if (ttw.state == TriggerWrapper.STATE_WAITING) {
@@ -1631,6 +1804,9 @@ public class RAMJobStore implements JobStore {
                         }
                         timeTriggers.remove(ttw);
                     }
+                    /**
+                     * 将job放置到blockedJobs中
+                     */
                     blockedJobs.add(job.getKey());
                 } else if (tw.trigger.getNextFireTime() != null) {
                     synchronized (lock) {
@@ -1652,6 +1828,12 @@ public class RAMJobStore implements JobStore {
      * in the given <code>JobDetail</code> should be updated if the <code>Job</code>
      * is stateful.
      * </p>
+     * 通知JobStore，调度器已经完成了触发给定的Trigger(以及执行其关联的Job)，如果Job是有状态的，则应该更新给定JobDetail中的jobdatmap。
+     *
+     * 在JobRunShell的run方法的最后会执行 :qs.notifyJobStoreJobComplete(trigger, jobDetail, instCode);
+     * 其中qs是QuartzScheduler，然后会执行
+     *  resources.getJobStore().triggeredJobComplete(trigger, detail, instCode);
+     *  也就是这的triggeredJobComplete
      */
     public void triggeredJobComplete(OperableTrigger trigger,
             JobDetail jobDetail, CompletedExecutionInstruction triggerInstCode) {
@@ -1665,9 +1847,18 @@ public class RAMJobStore implements JobStore {
             //   1- it was deleted during execution
             //   2- RAMJobStore is being used only for volatile jobs / triggers
             //      from the JDBC job store
+            /**
+             * //如果:
+             * //在执行过程中被删除
+             * // 2- RAMJobStore只用于不稳定的作业/触发器
+             * //从JDBC作业存储
+             */
             if (jw != null) {
                 JobDetail jd = jw.jobDetail;
 
+                /**
+                 *类上是否存在PersistJobDataAfterExecution注解
+                 */
                 if (jd.isPersistJobDataAfterExecution()) {
                     JobDataMap newData = jobDetail.getJobDataMap();
                     if (newData != null) {
@@ -1678,6 +1869,9 @@ public class RAMJobStore implements JobStore {
                     jw.jobDetail = jd;
                 }
                 if (jd.isConcurrentExectionDisallowed()) {
+                    /**
+                     * 参考org.quartz.simpl.RAMJobStore#triggersFired(java.util.List) 中的blockedJobs.add(job.getKey());
+                     */
                     blockedJobs.remove(jd.getKey());
                     ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(jd.getKey());
                     for(TriggerWrapper ttw : trigs) {
@@ -1798,6 +1992,8 @@ public class RAMJobStore implements JobStore {
         return false;
     }
 
+
+
 }
 
 /*******************************************************************************
@@ -1854,6 +2050,7 @@ class JobWrapper {
     public int hashCode() {
         return key.hashCode(); 
     }
+
 }
 
 class TriggerWrapper {
@@ -1864,6 +2061,43 @@ class TriggerWrapper {
 
     public final OperableTrigger trigger;
 
+    /**
+     * public static final int state_normal
+     * 表示触发器处于“正常”状态。
+     *
+     *
+     * public static final int state_paused
+     * 指示触发器处于“暂停”状态。
+     *
+     *
+     * public static final int state_complete
+     * 指示触发器处于“完成”状态。
+     *
+     * “完成”表示触发器的时间表中没有剩余的触发时间。
+     *
+     *
+     * public static final int state_error
+     * 指示触发器处于“错误”状态。
+     *
+     * 当调度程序试图触发触发器时，触发器将到达错误状态，但由于在创建和执行其相关作业时发生错误而不能。这通常是由于Job的类不在类路径中。
+     *
+     * 当触发器处于错误状态时，调度程序将不会尝试触发它。
+     *
+     *
+     * public static final int state_blocked
+     * 表示触发器处于“阻塞”状态。
+     *
+     * 当触发器与之关联的作业是一个StatefulJob并且它当前正在执行时，它就会到达阻塞状态。
+     *
+     * 还看到:
+     * StatefulJob
+     *
+     * public static final int state_none
+     * 表示触发器不存在。
+     *
+     *
+     * public static final int default_priority优先级的默认值。
+     */
     public int state = STATE_WAITING;
 
     public static final int STATE_WAITING = 0;
@@ -1912,4 +2146,6 @@ class TriggerWrapper {
     public OperableTrigger getTrigger() {
         return this.trigger;
     }
+
+
 }

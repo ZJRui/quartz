@@ -669,6 +669,7 @@ public class CalendarIntervalTriggerImpl extends AbstractTrigger<CalendarInterva
      * fire, after the given time. If the trigger will not fire after the given
      * time, <code>null</code> will be returned.
      * </p>
+     * getFireTimeAfter 返回触发器下一次将要触发的时间，如果在给定（参数）的时间之后，触发器不会在被触发，那么返回null。
      */
     @Override
     public Date getFireTimeAfter(Date afterTime) {

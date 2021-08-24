@@ -53,6 +53,50 @@ import java.util.Date;
  * @see CalendarIntervalTrigger
  * 
  * @author James House
+ *
+ * 具有所有触发器共有属性的基本接口—使用TriggerBuilder实例化一个实际的触发器。
+ * 触发器有一个与它们相关联的TriggerKey，它应该在一个调度程序中唯一地标识它们。
+ * 触发器是调度作业的“机制”。许多触发器可以指向同一个Job，但是一个触发器只能指向一个Job。
+ * 触发器可以通过将内容放置到触发器上的jobdatmap中来“发送”参数/数据到Jobs。
+ *
+ * http://www.docjar.com/docs/api/org/quartz/Trigger.html
+ *
+ * public static final int state_normal
+ * 表示触发器处于“正常”状态。
+ *
+ *
+ * public static final int state_paused
+ * 指示触发器处于“暂停”状态。
+ *
+ *
+ * public static final int state_complete
+ * 指示触发器处于“完成”状态。
+ *
+ * “完成”表示触发器的时间表中没有剩余的触发时间。
+ *
+ *
+ * public static final int state_error
+ * 指示触发器处于“错误”状态。
+ *
+ * 当调度程序试图触发触发器时，触发器将到达错误状态，但由于在创建和执行其相关作业时发生错误而不能。这通常是由于Job的类不在类路径中。
+ *
+ * 当触发器处于错误状态时，调度程序将不会尝试触发它。
+ *
+ *
+ * public static final int state_blocked
+ * 表示触发器处于“阻塞”状态。
+ *
+ * 当触发器与之关联的作业是一个StatefulJob并且它当前正在执行时，它就会到达阻塞状态。
+ *
+ * 还看到:
+ * StatefulJob
+ *
+ * public static final int state_none
+ * 表示触发器不存在。
+ *
+ *
+ * public static final int default_priority优先级的默认值。
+ *
  */
 public interface Trigger extends Serializable, Cloneable, Comparable<Trigger> {
 
@@ -86,6 +130,16 @@ public interface Trigger extends Serializable, Cloneable, Comparable<Trigger> {
      *
      * <p><code>SET_ALL_JOB_TRIGGERS_ERROR</code> Instructs the <code>{@link Scheduler}</code> that 
      * the <code>Trigger</code> should be put in the <code>ERROR</code> state.</p>
+     *
+     * NOOP通知调度程序触发器没有进一步的指令。
+     * RE_EXECUTE_JOB指示调度器，触发器希望立即重新执行JobDetail。如果不是在'RECOVERING'或'FAILED_OVER'的情况下，执行上下文将被重用(给Job 'see'任何上次执行时放在上下文中的内容的能力)。
+     * SET_TRIGGER_COMPLETE指示调度程序将触发器置于COMPLETE状态。
+     * DELETE_TRIGGER通知调度程序，触发器希望删除自己。
+     * SET_ALL_JOB_TRIGGERS_COMPLETE指示调度器，所有引用相同JobDetail的触发器都应该置于COMPLETE状态。
+     * SET_TRIGGER_ERROR指示调度器，所有引用与这个JobDetail相同的触发器都应该置于ERROR状态。
+     * SET_ALL_JOB_TRIGGERS_ERROR指示调度程序将触发器置于ERROR状态。
+     *
+     *
      */
     public enum CompletedExecutionInstruction { NOOP, RE_EXECUTE_JOB, SET_TRIGGER_COMPLETE, DELETE_TRIGGER, 
         SET_ALL_JOB_TRIGGERS_COMPLETE, SET_TRIGGER_ERROR, SET_ALL_JOB_TRIGGERS_ERROR }
@@ -101,6 +155,9 @@ public interface Trigger extends Serializable, Cloneable, Comparable<Trigger> {
      * the documentation for the <code>updateAfterMisfire()</code> method
      * on the particular <code>Trigger</code> implementation you are using.
      * </p>
+     * 指示Scheduler在发生误发情况时，将在Trigger上调用updateAfterMisfire()方法，以确定误发指令，该逻辑将依赖于触发器实现。
+     * 为了查看这条指令是否符合您的需求，您应该查看正在使用的特定触发器实现的updateAfterMisfire()方法的文档。
+     * misfire_instruction_smart_policy
      */
     public static final int MISFIRE_INSTRUCTION_SMART_POLICY = 0;
     
@@ -211,12 +268,16 @@ public interface Trigger extends Serializable, Cloneable, Comparable<Trigger> {
      * </p>
      *
      * @see TriggerUtils#computeFireTimesBetween(org.quartz.spi.OperableTrigger, Calendar, java.util.Date, java.util.Date)
+     * 返回触发器计划下一次触发的时间。如果触发器不会再次触发，则返回null。注意，返回的时间可能是过去的时间，如果为触发器计算的下一次触发的时间已经到达，但是调度器还不能触发触发器(这可能是由于缺乏资源，例如线程)。
+     * 在将Trigger添加到调度器之前，不能保证返回的值是有效的。
+     * Quartz把触发job叫做fire。TRIGGERSTATE是当前trigger的状态，PREVFIRE_TIME是上一次触发的时间，NEXTFIRETIME是下一次触发的时间，misfire是指这个job在某一时刻要触发、却因为某些原因没有触发的情况
      */
     public Date getNextFireTime();
 
     /**
      * Returns the previous time at which the <code>Trigger</code> fired.
      * If the trigger has not yet fired, <code>null</code> will be returned.
+     * 返回触发触发器的上一次时间。如果触发器尚未触发，则返回null。
      */
     public Date getPreviousFireTime();
 

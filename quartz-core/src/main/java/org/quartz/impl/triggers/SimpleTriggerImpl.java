@@ -81,6 +81,9 @@ public class SimpleTriggerImpl extends AbstractTrigger<SimpleTrigger> implements
 
     private Date nextFireTime = null;
 
+    /**
+     * 返回触发触发器的上一次时间。如果触发器尚未触发，则返回null。
+     */
     private Date previousFireTime = null;
 
     private int repeatCount = 0;
@@ -473,6 +476,22 @@ public class SimpleTriggerImpl extends AbstractTrigger<SimpleTrigger> implements
      */
     @Override
     public void updateAfterMisfire(Calendar cal) {
+        /**
+         * 关于属性 misfireInstruction 参考文档《misfire Thresshold属性的意义》
+         *
+         * org.quartz.jobStore.misfireThreshold = 60000 #60秒  默认值
+         *
+         * 那么执行第一次作业是在10:01秒，这时会设定下一次的执行时间为10:02秒，要等一个作业执行完之后才有可用线程，大概要在10:11秒才能执行前面安排的应该在10:02执行的作业，这时就会用到misfireThreshold, 因为10:11与10:02之间的差值小于6000，所以执行该作业，并以10:02为基准设置下一次执行时间为10:03，这样造成每次实际执行时间与安排时间错位
+         *
+         *
+         *
+         * 如果 org.quartz.jobStore.misfireThreshold = 6000 #秒
+         * 同样，在10:11计划执行安排在10:02的作业，发现10:11与10:02之间的差值小于6000，那么直接跳过该作业，执行本应在当前时间执行的作业，这时候会以10:11为基准设定下次作业执行时间为10:12
+         *
+         *
+         *
+         * misfireThreshold只有当job任务被阻塞时才有效，如果线程池里线程很多，该参数没有意义。所以大部分时候只对有状态的job才有意义。
+         */
         int instr = getMisfireInstruction();
         
         if(instr == Trigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY)
@@ -706,6 +725,7 @@ public class SimpleTriggerImpl extends AbstractTrigger<SimpleTrigger> implements
      * Returns the previous time at which the <code>SimpleTrigger</code> 
      * fired. If the trigger has not yet fired, <code>null</code> will be
      * returned.
+     * 返回触发触发器的上一次时间。如果触发器尚未触发，则返回null。
      */
     @Override
     public Date getPreviousFireTime() {
