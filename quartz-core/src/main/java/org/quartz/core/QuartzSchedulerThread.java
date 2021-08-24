@@ -221,7 +221,15 @@ public class QuartzSchedulerThread extends Thread {
      *
      * @param candidateNewNextFireTime the time (in millis) when the newly scheduled trigger
      * will fire.  If this method is being called do to some other even (rather
-     * than scheduling a trigger), the caller should pass zero (0).
+     * than scheduling a trigger), the caller should pass zero (0).<br>
+     *
+     *
+     *
+     * <p>向主处理循环发出调度发生变化的信号——以便在等待触发时间到来时中断可能发生的任何睡眠。
+     *
+     * 参数:
+     * candidateNewNextFireTime——新调度的触发器触发的时间(单位为毫秒)。如果这个方法被调用到其他方法(而不是调度触发器)，调用者应该传递0(0)。
+     * 石英核心</p>
      */
     public void signalSchedulingChange(long candidateNewNextFireTime) {
         synchronized(sigLock) {
@@ -266,6 +274,24 @@ public class QuartzSchedulerThread extends Thread {
         while (!halted.get()) {
             try {
                 // check if we're supposed to pause...
+                /**
+                 * 问题：为什么要synchronized？因为后面我们调用sigLock的wait方法，调用wait方法必须要先保证线程能够获取到对象上的锁.
+                 * The Object.wait method is used to make a thread wait for some condition. It must be
+                 * invoked inside a synchronized region that locks the object on which it is invoked. This is the
+                 * standard idiom for using the wait method:
+                 *
+                 * 问题2： 在Java的 Object的wait方法的官方文档说明中有提到 wait方法的标准使用方式，就是下面的这种 step1 首先获取对象的锁
+                 * step2：使用while循环锁定条件  step3 while循环内调用对象的wait方法。  因此问题就是 为什么标准方式中推荐是在while循环内调用wait
+                 * 而不是  synchronized(object){  objec.wait() }
+                 *  官方文档中有提到 wait方法将会使得当前线程阻塞并释放对象的锁，同时当 出现（1）其他线程通过object对象调用了notify或者notifyAll （2）当前线程被interrupt抛出interruptException
+                 *  （3）wait等待超过指定的超时时间  这三种情况会导致线程被唤醒。
+                 *  官方文档：线程也可以在没有被通知、中断或超时的情况下唤醒，即所谓的虚假唤醒。虽然这在实践中很少发生，但应用程序必须通过测试应该引起线程被唤醒的条件来防止它，如果条件不满足，则继续等待。换句话说，等待应该总是在循环中发生，就像下面这个:
+                 *
+                 *
+                 *
+                 *
+                 *
+                 */
                 synchronized (sigLock) {
 
                     /**
@@ -276,8 +302,13 @@ public class QuartzSchedulerThread extends Thread {
                      *
                      *      paused为true表示暂停，因此paused为true的时候不退出while
                      *
-                     *      循环检查paused && !halted.get()条件是否满足，否则释放sigLock对象的锁，并等待，一秒后重试。
+                     * 循环检查paused && !halted.get()条件是否满足，否则释放sigLock对象的锁，并等待，一秒后重试。
                      * 当QuartzScheduler对象创建并调用start()方法时，将唤醒QuartzSchedulerThread线程，即可跳出阻塞块，继续执行。
+                     *
+                     * Q1:halted 表示是否调用了shutdown 来终止，在shutdown中会调用halt方法来设置halted遍历为true。halted变量在构造器中默认设置为了false
+                     * Q2:paused 表示是否调用了start方法来启动，start方法中会将paused设置为false；paused 变量在构造器中默认设置为了true
+                     *Q3：QuartzSchedulerThread本身是一个Runnable，他被放置到了线程池中，所以其run方法会立即执行，但是我们要等待调用了start方法之后才会执行具体的业务逻辑，因此这里通过paused和halted变量来实现控制
+                     *
                      */
                     while (paused && !halted.get()) {
                         try {
@@ -296,6 +327,11 @@ public class QuartzSchedulerThread extends Thread {
                         //在取消暂停后再次等待
                         // reset failure counter when paused, so that we don't
                         // wait again after unpausing
+                        /**
+                         * acquiresFailed在下面的获取trigger acquireNextTriggers的catch中会增加，因此
+                         * acquiresFailed表示的是获取trigger失败的次数。这里是重置获取trigger的失败次数
+                         *
+                         */
                         acquiresFailed = 0;
                     }
                     /**
@@ -316,6 +352,9 @@ public class QuartzSchedulerThread extends Thread {
                  */
                 if (acquiresFailed > 1) {
                     try {
+                        /**
+                         * computeDelayForRepeatedErrors 计算一个延迟重试等待时间，等待指定的时间后再尝试重新获取trigger
+                         */
                         long delay = computeDelayForRepeatedErrors(qsRsrcs.getJobStore(), acquiresFailed);
                         Thread.sleep(delay);
                     } catch (Exception ignore) {
@@ -502,12 +541,20 @@ public class QuartzSchedulerThread extends Thread {
                              * 这里将shell对象放入线程中执行
                              * runInThread是java中ThreadPool中提供的方法：在下一个可用的线程中执行给定的Runnable。
                              * 这个接口的实现不应该抛出异常，除非有严重的问题(例如，严重的配置错误)。如果没有立即可用的线程，则返回false。
+                             *
+                             * runInThread 返回false表示没有立即可用的线程,在上面我们是有尝试获取可用线程数量的
                              */
                             if (qsRsrcs.getThreadPool().runInThread(shell) == false) {
                                 // this case should never happen, as it is indicative of the
                                 // scheduler being shutdown or a bug in the thread pool or
                                 // a thread pool being used concurrently - which the docs
                                 // say not to do...
+                                /**
+                                 * //这种情况不应该发生，因为它表明
+                                 * //调度程序正在关闭或线程池中的错误
+                                 * //当前正在使用的线程池
+                                 * //说不做…
+                                 */
                                 getLog().error("ThreadPool.runInThread() return false!");
                                 qsRsrcs.getJobStore().triggeredJobComplete(triggers.get(i), bndle.getJobDetail(), CompletedExecutionInstruction.SET_ALL_JOB_TRIGGERS_ERROR);
                             }

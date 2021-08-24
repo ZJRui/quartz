@@ -93,6 +93,14 @@ public class LocalTaskExecutorThreadPool implements ThreadPool {
 		// This could be made smarter for specific TaskExecutors,
 		// for example calling {@code getMaximumPoolSize() - getActiveCount()}
 		// on a {@code java.util.concurrent.ThreadPoolExecutor}.
+		/**
+		 * //当前实现总是返回1，使Quartz
+		 * //总是安排任何感觉像调度的任务。
+		 * //对于特定的TaskExecutors，
+		 * //例如调用{@code getMaximumPoolSize() - getActiveCount()}
+		 * //在一个{@code java.util.concurrent.ThreadPoolExecutor}。
+		 *
+		 */
 		return 1;
 	}
 

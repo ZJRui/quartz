@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import org.quartz.Calendar;
 import org.quartz.Job;
@@ -1578,6 +1579,7 @@ public class RAMJobStore implements JobStore {
 
         synchronized (lock) {
             List<TriggerFiredResult> results = new ArrayList<TriggerFiredResult>();
+            timeTriggers.stream().filter(trigger-> trigger.getTrigger().getJobKey().getName().contains("")).collect(Collectors.toList());
 
             for (OperableTrigger trigger : firedTriggers) {
                 TriggerWrapper tw = triggersByKey.get(trigger.getKey());

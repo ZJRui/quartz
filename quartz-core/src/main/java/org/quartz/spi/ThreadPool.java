@@ -35,7 +35,10 @@ import org.quartz.SchedulerConfigException;
  * result in extra JobStore queries and updates, and if clustering features
  * are being used, it may result in greater imballance of load.
  * </p>
- *
+ *要由希望为org.quartz.core提供线程池的类实现的接口。QuartzScheduler的使用。
+ * 理想情况下，应该使ThreadPool实现实例仅供Quartz使用。最重要的是，当blockForAvailableThreads()方法返回值为1或更大时，
+ * 当稍后调用runInThread(Runnable)方法时，池中必须仍然至少有一个可用线程。如果这个假设不正确，可能会导致额外的JobStore查询和更新，
+ * 如果使用集群特性，可能会导致更大的负载不平衡。
  * @see org.quartz.core.QuartzScheduler
  *
  * @author James House
@@ -61,6 +64,8 @@ public interface ThreadPool {
      * there is a serious problem (i.e. a serious misconfiguration). If there
      * are no immediately available threads <code>false</code> should be returned.
      * </p>
+     * 在下一个可用的线程中执行给定的Runnable。
+     * 这个接口的实现不应该抛出异常，除非有严重的问题(例如，严重的配置错误)。如果没有立即可用的线程，则返回false。
      *
      * @return true, if the runnable was assigned to run on a Thread.
      */
