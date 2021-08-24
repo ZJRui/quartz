@@ -1684,6 +1684,7 @@ public class RAMJobStore implements JobStore {
                 }
                 /**
                  * 将Trigger放入result中，result中是将要被触发的trigger
+                 * 从上面的内容中我们看到 result中的 trigger的state都应该是state_acquired
                  */
                 result.add(trig);
                 if (result.size() == maxCount)
@@ -1769,6 +1770,12 @@ public class RAMJobStore implements JobStore {
                 /**
                  * 这个地方有个问题，上面的代码中会判断当前的trigger的状态是否是acquired，如果不是则跳过。
                  * 因此这里trigger的状态必然是acquired，正常情况下下一个状态应该是executing，为什么下面的代码将状态设置为waiting？
+                 *
+                 *
+                 * 这里将状态设置为 waiting，在后面的处理中 也就是下面的for循环中会遍历每一个Trigger，如果trigger的状态为waiting，则会将其更新为blocked，并从timeTriggers中移除。
+                 *
+                 * 也就是说： 处于执行状态的Job的该Trigger的state 将会是 blocked。 同时该Trigger对应的Job 会被放置到  blockedJobs.add(job.getKey());
+                 *
                  */
                 //tw.state = TriggerWrapper.STATE_EXECUTING;
                 tw.state = TriggerWrapper.STATE_WAITING;
@@ -1785,7 +1792,7 @@ public class RAMJobStore implements JobStore {
                  */
                 if (job.isConcurrentExectionDisallowed()) {
                     /**
-                     * 这里getTriggerWrappersForJob 是从triggersByJob中获取Job的所有Trigger，然后将该Job的所有trigger设置为block状态
+                     * 这里getTriggerWrappersForJob 是从triggersByJob中获取Job的所有Trigger，然后将该Job的处于waiting和state_paused状态的所有trigger设置为block状态
                      * 然后将Job放置到blockedJobs中。同时会将该Job的所有trigger从timeTriggers中移除，这样下次遍历timeTriggers的时候就拿不到该Job的trigger
                      * 然后在Job执行完成的时候 ，也就是JobRunShell的run方法的最后会执行notifyJobStoreJobComplete，此时会执行
                      *   resources.getJobStore().triggeredJobComplete(trigger, detail, instCode);
@@ -1796,6 +1803,14 @@ public class RAMJobStore implements JobStore {
                      */
                     ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(job.getKey());
                     for (TriggerWrapper ttw : trigs) {
+                        /**
+                         * 注意这里遍历了该Job的所有trigger，在上面的代码中，对于当前外部的trigger，我们会判断其状态是否是acquired：tw.state != TriggerWrapper.STATE_ACQUIRED
+                         * 如果不是acquired则会执行continue，也就走不到这里。
+                         *
+                         * 我们获取到的当前Job的所有trigger，对于这些trigger中处于waiting状态的设置为blocked， 处于paused状态的设置为paused_block。
+                         * 处于acquired状态的trigger，比如for外部的tw并不更改其状态。
+                         * 然后将该Job的所有trigger从timeTriggers中移除， 这样可以保证下次遍历timeTriggers的时候不会获取到当前Job的Trigger，从而不会并发执行该Job
+                         */
                         if (ttw.state == TriggerWrapper.STATE_WAITING) {
                             ttw.state = TriggerWrapper.STATE_BLOCKED;
                         }

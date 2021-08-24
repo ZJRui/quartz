@@ -528,6 +528,9 @@ public abstract class AbstractTrigger<T extends Trigger> implements OperableTrig
      * 
      * @see org.quartz.Trigger.CompletedExecutionInstruction
      * @see #triggered(Calendar)
+     *
+     * Quartz客户机不应该使用此方法。
+     * 在Scheduler执行了与触发器关联的org.quartz.JobDetail之后调用，以便从触发器获得最终指令代码。
      */
     public CompletedExecutionInstruction executionComplete(JobExecutionContext context,
                                           JobExecutionException result)
