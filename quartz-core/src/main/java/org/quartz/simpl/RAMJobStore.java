@@ -253,7 +253,17 @@ public class RAMJobStore implements JobStore {
      */
     public void storeJobAndTrigger(JobDetail newJob,
             OperableTrigger newTrigger) throws JobPersistenceException {
+        /**
+         *
+         * 就像现在我们有了Job有了Trigger，怎么把他们建立对应关系并储存起来呢？答案就是JobStore类，JobStore是建立JobDetail和Trigger关联的关键类，同时也存储JobDetail和Tigger的类。Quartz内部有两个实现类：
+         *
+         * 存储在内存中，对应类RAMJobStore，这个存储类的特性是项目重启以后会清空数据。
+         *
+         */
         storeJob(newJob, false);
+        /**
+         * 进行调度
+         */
         storeTrigger(newTrigger, false);
     }
 
@@ -275,6 +285,19 @@ public class RAMJobStore implements JobStore {
     public void storeJob(JobDetail newJob,
             boolean replaceExisting) throws ObjectAlreadyExistsException {
         JobWrapper jw = new JobWrapper((JobDetail)newJob.clone());
+
+        /**
+         * 就像现在我们有了Job有了Trigger，怎么把他们建立对应关系并储存起来呢？答案就是JobStore类，JobStore是建立JobDetail和Trigger关联的关键类，同时也存储JobDetail和Tigger的类。Quartz内部有两个实现类：
+         *
+         * 存储在内存中，对应类RAMJobStore，这个存储类的特性是项目重启以后会清空数据。
+         * 存储到数据库中，使用到了JDBC接口，对应JobStoreTX类和JobStoreCMT类，这两个类分别对应Quartz单机持久化部署和集群持久化部署的数据库操作实现。
+         * 这里我们分析RAMJobStore，这个类我们不需要手动创建，如果配置文件中不启用数据库配置的话，Quartz默认使用这个类。
+         *
+         * 在Quartz框架中，我们会使用scheduleJob方法提交Job和Trigger，实现Job和Trigger关联的关键步骤有两个
+         *
+         * Trigger实例设置JobKey，这里需要注意Quartz框架中每个Job都会有一个唯一的JobKey来标识
+         * 存储JobDetial和Trigger到JobStore中，Quartz中有两种方式存储，一种时存储到内存中，一种是使用JDBC存储到数据库中。
+         */
 
         boolean repl = false;
 

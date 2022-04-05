@@ -444,6 +444,8 @@ public class QuartzSchedulerThread extends Thread {
                         long timeUntilTrigger = triggerTime - now;
                         /**
                          * 下次触发的时间举例当前时间大于2毫秒
+                         * // 这里判断依据是2毫秒，其实是因为线程休眠唤醒也是需要一定时间的
+                         * 	// 因此如果触发倒计时小于2毫秒 ，就认为这时已经可以触发任务了
                          */
                         while(timeUntilTrigger > 2) {
 
@@ -487,7 +489,7 @@ public class QuartzSchedulerThread extends Thread {
                              * 重新计算trigger的触发时间和当前时间的差值，进入while进行判断是否跳出while
                              */
                             timeUntilTrigger = triggerTime - now;
-                        }
+                        }//end while
 
                         // this happens if releaseIfScheduleChangedSignificantly decided to release triggers
                         if(triggers.isEmpty())

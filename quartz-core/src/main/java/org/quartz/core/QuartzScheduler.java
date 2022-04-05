@@ -865,6 +865,10 @@ public class QuartzScheduler implements RemotableQuartzScheduler {
                     "Based on configured schedule, the given trigger '" + trigger.getKey() + "' will never fire.");
         }
 
+        /**
+         * 将JobDetail和Trigger存储到JobStore中，然后进行调度
+         *
+         */
         resources.getJobStore().storeJobAndTrigger(jobDetail, trig);
         notifySchedulerListenersJobAdded(jobDetail);
         notifySchedulerThread(trigger.getNextFireTime().getTime());

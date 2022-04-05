@@ -606,6 +606,11 @@ public class StdSchedulerFactory implements SchedulerFactory {
         this.cfg = new PropertiesParser(props);
     }
 
+    /**
+     * 入口点  StdSchedulerFactory的getScheduler 方法中会调用 StdSchedulerFactory.instantiate
+     * @return
+     * @throws SchedulerException
+     */
     private Scheduler instantiate() throws SchedulerException {
         if (cfg == null) {
             initialize();
@@ -837,7 +842,7 @@ public class StdSchedulerFactory implements SchedulerFactory {
         }
 
         // Get ThreadPool Properties
-        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ // 创建线程池，这个在配置文件里面配线程池类名
 
         String tpClass = cfg.getStringProperty(PROP_THREAD_POOL_CLASS, SimpleThreadPool.class.getName());
 
